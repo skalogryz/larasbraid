@@ -14,7 +14,7 @@ The utility adds the model into a .phd file.
 
 run the utility and pass .phd file file
 
-'larasbraid level1.phd'
+`larasbraid level1.phd`
 
 if it's identified that the file specified is TR1 file and it doesn't have a braid model.
 The new file will be generated with the model added. The resultign file name would be changed to *-braided.phd
@@ -24,5 +24,5 @@ The new file will be generated with the model added. The resultign file name wou
 
 The utility requires FPC (pretty much any available version)
 
-'fpc larasbraid.lpr'
+`fpc larasbraid.lpr`
 
