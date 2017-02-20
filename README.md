@@ -20,9 +20,11 @@ if it's identified that the file specified is TR1 file and it doesn't have a bra
 The new file will be generated with the model added. The resultign file name would be changed to *-braided.phd
 
 
-# Compilation
+# Building
 
-The utility requires FPC (pretty much any available version)
+The utility requires [Free Pascal Compiler](http://freepascal.org) (pretty much any available version)
 
 `fpc larasbraid.lpr`
 
+With some smaller adjustements (i.e. adding $IFDEFs for ${mode delphi} directive), could be 
+compiled by Delphi compiler as well.
