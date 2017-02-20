@@ -17,9 +17,10 @@ run the utility and pass .phd file file
 `larasbraid level1.phd`
 
 if it's identified that the file specified is TR1 file and it doesn't have a braid model.
-The new file will be generated with the model added. The resultign file name would be changed to *-braided.phd
-
-
+The new file will be generated with the model added. The result is written into a file with a name modified to *-braided.phd
+(i.e. level1.phd would be written to level1-braided.phd)
+The original file is left unmodified
+                                    
 # Building
 
 The utility requires [Free Pascal Compiler](http://freepascal.org) (pretty much any available version)
