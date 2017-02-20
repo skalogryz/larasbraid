@@ -4,7 +4,7 @@ Lara's Croft braid utility is intented to add a braid model into .phd (Tomb Raid
 The TR1 (DOS and later Windows versions) engine doesn't support rendering of a Lara's braid.
 (Even though she appears with the braid in cutscenes)
 
-The later open source indy projects (such as OpenLara) adds support for the it.
+The later open source indy projects (such as [OpenLara](https://github.com/XProger/OpenLara)) adds support for the it.
 However, it's using level resources and depends on the model to be in .phd file.
 
 The utility adds the model into a .phd file.
