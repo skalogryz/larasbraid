@@ -542,22 +542,18 @@ type
           coloured_triangles : ^tr4_face3_t;
         end;
       tr4_mesh_t = tr4_mesh_s;
-    {*  Staticmesh.
-       }
-    { 32 bytes }
-    { Object Identifier (matched in Items[]) }
-    { mesh (offset into MeshPointers[]) }
-    { Meaning uncertain; it is usually 2, and is 3 for objects Lara can travel through, }
-    { like TR2's skeletons and underwater vegetation }
 
-      tr_staticmesh_s = record
-          object_id : uint32;
-          mesh : uint16;
-          visibility_box : array[0..1] of tr5_vertex_t;
-          collision_box : array[0..1] of tr5_vertex_t;
-          flags : uint16;
-        end;
-      tr_staticmesh_t = tr_staticmesh_s;
+  {*  Staticmesh. }
+
+  tr_staticmesh = record   { 32 bytes }
+    object_id      : uint32;                     { Object Identifier (matched in Items[]) }
+    mesh           : uint16;                     { mesh (offset into MeshPointers[]) }
+    visibility_box : array[0..1] of tr5_vertex;  { Meaning uncertain; it is usually 2, and is 3 for objects Lara can travel through, }
+    collision_box  : array[0..1] of tr5_vertex;
+    flags          : uint16;                     { like TR2's skeletons and underwater vegetation }
+  end;
+  tr_staticmesh_s = tr_staticmesh;
+  tr_staticmesh_t = tr_staticmesh_s;
 
 
     {* MeshTree.

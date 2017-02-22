@@ -1,4 +1,4 @@
-unit tr_utils;
+unit tr1_utils;
 
 {$mode delphi}{$H+}
 
@@ -13,7 +13,7 @@ type
   end;
 
   TTR1Room = record
-    base       : tr2_room_info;
+    base       : tr1_room_info;
     roomData   : TTR1VertexData;
 
     doorsCount : integer;
@@ -34,7 +34,7 @@ type
     flags       : uint16;
   end;
 
-  TTRLevel = record
+  TTR1Level = record
     version : LongWord;
 
     PaletteCount  : LongWord;
@@ -75,7 +75,7 @@ type
     Model          : array of tr1_model;
 
     StaticMeshCount : integer;
-    StaticMesh      : array of tr_staticmesh_s;
+    StaticMesh      : array of tr_staticmesh;
 
     ObjTexCount : integer;
     ObjTex      : array of tr1_object_texture;
@@ -127,11 +127,11 @@ type
     SampleIndex      : array of UInt32;
   end;
 
-function ReadLevel(s: TStream; var lvl: TTRlevel): Boolean; overload;
-function ReadLevel(const fn: string; var lvl: TTRLevel): Boolean; overload;
+function ReadLevel(s: TStream; var lvl: TTR1level): Boolean; overload;
+function ReadLevel(const fn: string; var lvl: TTR1level): Boolean; overload;
 
-function WriteLevel(s: TStream; const lvl: TTRLevel): Boolean; overload;
-function WriteLevel(const fn: string; const lvl: TTRLevel): Boolean; overload;
+function WriteLevel(s: TStream; const lvl: TTR1level): Boolean; overload;
+function WriteLevel(const fn: string; const lvl: TTR1level): Boolean; overload;
 
 procedure SaveDataToFile(const data; size: integer; const dst: string);
 
@@ -211,7 +211,7 @@ begin
 end;
 
 // DoReadLevel doesn't catch any exceptions of TStream might send
-function DoReadLevel1(const s: TStream; var lvl: TTRlevel): Boolean;
+function DoReadLevel1(const s: TStream; var lvl: TTR1level): Boolean;
 var
   i : integer;
 begin
@@ -400,7 +400,7 @@ begin
   Result:=true;
 end;
 
-function DoReadLevel(s: TStream; var lvl: TTRlevel) : Boolean;
+function DoReadLevel(s: TStream; var lvl: TTR1level) : Boolean;
 begin
   //writeln('reading');
   lvl.version:=s.ReadDWord;
@@ -410,7 +410,7 @@ begin
     Result:=false;
 end;
 
-function ReadLevel(s: TStream; var lvl: TTRlevel): Boolean;
+function ReadLevel(s: TStream; var lvl: TTR1level): Boolean;
 begin
   try
     Result:=DoReadLevel(s, lvl);
@@ -421,7 +421,7 @@ begin
   end;
 end;
 
-function ReadLevel(const fn: string; var lvl: TTRLevel): Boolean;
+function ReadLevel(const fn: string; var lvl: TTR1level): Boolean;
 var
   fs : TfileStream;
 begin
@@ -488,7 +488,7 @@ begin
   s.WriteWord(room.flags);
 end;
 
-function DoWriteLevel(s: TStream; const lvl: TTRLevel): Boolean;
+function DoWriteLevel(s: TStream; const lvl: TTR1level): Boolean;
 var
   i : integer;
 begin
@@ -616,7 +616,7 @@ begin
   Result:=true;
 end;
 
-function WriteLevel(s: TStream; const lvl: TTRLevel): Boolean;
+function WriteLevel(s: TStream; const lvl: TTR1level): Boolean;
 begin
   try
     Result:=DoWriteLevel(s, lvl);
@@ -625,7 +625,7 @@ begin
   end;
 end;
 
-function WriteLevel(const fn: string; const lvl: TTRLevel): Boolean;
+function WriteLevel(const fn: string; const lvl: TTR1level): Boolean;
 var
   fs: TFileStream;
 begin

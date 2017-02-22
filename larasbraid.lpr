@@ -4,9 +4,9 @@ program larasbraid;
 
 uses
   Classes, SysUtils,
-  tr_types, tr_utils;
+  tr_types, tr1_utils;
 
-procedure DropSoundFiles(const lvl: TTRLevel);
+procedure DropSoundFiles(const lvl: TTR1Level);
 var
   i   : integer;
   ofs : integer;
@@ -23,7 +23,7 @@ begin
   end;
 end;
 
-procedure DumpItems(const lvl: TTRLevel);
+procedure DumpItems(const lvl: TTR1Level);
 var
   i : integer;
 begin
@@ -32,7 +32,7 @@ begin
     writeln(lvl.Item[i].object_id:10,lvl.Item[i].x:8,lvl.Item[i].y:8,lvl.Item[i].z:8);
 end;
 
-procedure DumpMeshTree(const lvl: TTRLevel; treeidx: integer);
+procedure DumpMeshTree(const lvl: TTR1Level; treeidx: integer);
 var
   i : integer;
 begin
@@ -44,7 +44,7 @@ begin
   ,' ',Integer(lvl.MeshTree[i+4]));
 end;
 
-procedure DumpMoveables(const lvl: TTRLevel);
+procedure DumpMoveables(const lvl: TTR1Level);
 var
   i : integer;
 begin
@@ -60,7 +60,7 @@ begin
   end;
 end;
 
-function isBraided(const lvl: TTRLevel): Integer;
+function isBraided(const lvl: TTR1Level): Integer;
 var
   i : integer;
 begin
@@ -87,7 +87,7 @@ begin
   end;
 end;
 
-procedure DumpMoveable(const lvl: TTRLevel; const mv: tr1_model);
+procedure DumpMoveable(const lvl: TTR1Level; const mv: tr1_model);
 var
   ofs : integer;
   sz  : integer;
@@ -130,7 +130,7 @@ begin
   end;
 end;
 
-procedure DumpMeshPointers(const lvl: TTRLevel);
+procedure DumpMeshPointers(const lvl: TTR1Level);
 var
   i : integer;
 begin
@@ -141,7 +141,7 @@ begin
 end;
 
 
-procedure AddBraid(var lvl: TTRLevel);
+procedure AddBraid(var lvl: TTR1Level);
 var
   i : integer;
   j : integer;
@@ -200,7 +200,7 @@ begin
 end;
 
 var
-  lvl: TTRLevel;
+  lvl: TTR1Level;
   mi : integer;
   src : string;
   dst : string;
