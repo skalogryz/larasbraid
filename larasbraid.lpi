@@ -29,7 +29,6 @@
       <Unit0>
         <Filename Value="larasbraid.lpr"/>
         <IsPartOfProject Value="True"/>
-        <UnitName Value="larasbraid"/>
       </Unit0>
       <Unit1>
         <Filename Value="tr_types.pas"/>

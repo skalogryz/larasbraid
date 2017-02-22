@@ -49,14 +49,14 @@ var
   i : integer;
 begin
   writeln('Moveables:');
-  for i:=0 to lvl.MoveableCount-1 do begin
-    writeln('':10,i,' object_id: ', lvl.Moveable[i].object_id);
-    writeln('':15,' animidx:  ',lvl.Moveable[i].animation_index);
-    writeln('':15,' start:    ',lvl.Moveable[i].starting_mesh);
-    writeln('':15,' meshes:   ',lvl.Moveable[i].num_meshes);
-    writeln('':15,' treeidx:  ',lvl.Moveable[i].mesh_tree_index,' ',lvl.MeshTreeCount);
-    writeln('':15,' frameofs: ',lvl.Moveable[i].frame_offset);
-    DumpMeshTree(lvl, lvl.Moveable[i].mesh_tree_index);
+  for i:=0 to lvl.ModelCount-1 do begin
+    writeln('':10,i,' object_id: ', lvl.Model[i].object_id);
+    writeln('':15,' animidx:  ',lvl.Model[i].animation_index);
+    writeln('':15,' start:    ',lvl.Model[i].starting_mesh);
+    writeln('':15,' meshes:   ',lvl.Model[i].num_meshes);
+    writeln('':15,' treeidx:  ',lvl.Model[i].mesh_tree_index,' ',lvl.MeshTreeCount);
+    writeln('':15,' frameofs: ',lvl.Model[i].frame_offset);
+    DumpMeshTree(lvl, lvl.Model[i].mesh_tree_index);
   end;
 end;
 
@@ -65,8 +65,8 @@ var
   i : integer;
 begin
   Result:=-1;
-  for i:=0 to lvl.MoveableCount-1 do
-    if lvl.Moveable[i].object_id=TR1_OBJID_BRAID then begin
+  for i:=0 to lvl.ModelCount-1 do
+    if lvl.Model[i].object_id=TR1_OBJID_BRAID then begin
       Result:=i;
       Exit;
     end;
@@ -87,7 +87,7 @@ begin
   end;
 end;
 
-procedure DumpMoveable(const lvl: TTRLevel; const mv: tr1_moveable);
+procedure DumpMoveable(const lvl: TTRLevel; const mv: tr1_model);
 var
   ofs : integer;
   sz  : integer;
@@ -104,7 +104,7 @@ begin
   ofs:=lvl.MeshPtr[mv.starting_mesh];
   for i:=0 to mv.num_meshes-1 do begin
     writelN('mesh ', i,' at ', ofs);
-    sz:=ReadFromData(lvl.MeshData, ofs, m);
+    sz:=TR1SetMeshFromData(lvl.MeshData, ofs, m);
     writeln('  mesh size: ', sz);
     writeln('    vert:  ',m.num_vertices,' ',sizeof(tr1_vertex));
     writeln('    norm:  ',m.num_normals,' ',sizeof(tr1_vertex));
@@ -115,7 +115,7 @@ begin
     writeln('    ctria: ',m.num_coloured_triangles,' ',sizeof(tr1_face3));
     inc(ofs, sz);
 
-    MakeMeshStandAlone(m);
+    TR1MakeMeshStandAlone(m);
     writeln(BufToArray(m._selfdata, length(m._selfdata)) );
 
   end;
@@ -149,18 +149,18 @@ var
   ofs : integer;
   k : integer;
 begin
-  i:=lvl.MoveableCount;
-  lvl.MoveableCount:=lvl.MoveableCount+1;
-  SetLength(lvl.Moveable, lvl.MoveableCount);
-  lvl.Moveable[i].object_id:=TR1_OBJID_BRAID;
-  lvl.Moveable[i].frame_offset:=lvl.FrameCount*2;
-  lvl.Moveable[i].animation_index:=$FFFF;
+  i:=lvl.ModelCount;
+  lvl.ModelCount:=lvl.ModelCount+1;
+  SetLength(lvl.Model, lvl.ModelCount);
+  lvl.Model[i].object_id:=TR1_OBJID_BRAID;
+  lvl.Model[i].frame_offset:=lvl.FrameCount*2;
+  lvl.Model[i].animation_index:=$FFFF;
 
   mp:=lvl.MeshPtrCount;
   ofs:=length(lvl.MeshData);
 
-  lvl.Moveable[i].num_meshes    := length(BraidMesh);
-  lvl.Moveable[i].starting_mesh := mp;
+  lvl.Model[i].num_meshes    := length(BraidMesh);
+  lvl.Model[i].starting_mesh := mp;
 
   lvl.MeshPtrCount:=lvl.MeshPtrCount+length(BraidMesh);
   SetLength(lvl.MeshPtr, lvl.MeshPtrCount);
@@ -183,7 +183,7 @@ begin
 
   SetLength(lvl.MeshTree, lvl.MeshTreeCount);
 
-  lvl.Moveable[i].mesh_tree_index:=j;
+  lvl.Model[i].mesh_tree_index:=j;
 
   for k:=0 to length(BraidMesh)-2 do begin
     lvl.MeshTree[j]:=0;

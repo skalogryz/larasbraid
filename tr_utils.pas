@@ -8,7 +8,7 @@ uses Classes, SysUtils, tr_types;
 
 type
   TTR1VertexData = record
-    data  : array of bitu16;
+    data  : array of uint16;
     count : integer;
   end;
 
@@ -23,15 +23,15 @@ type
     xSector    : integer;
     sectors    : array of tr1_room_sector;
 
-    intensity  : bit16;
+    intensity  : int16;
     lightsCount : integer;
     light      : array of tr1_room_light;
 
     meshesCount : integer;
     meshes      : array of tr1_room_staticmesh;
 
-    alterRoom   : bit16;
-    flags       : bitu16;
+    alterRoom   : int16;
+    flags       : uint16;
   end;
 
   TTRLevel = record
@@ -46,12 +46,12 @@ type
     Rooms      : array of TTR1Room;
 
     FloorCount : Integer;
-    Floor          : array of bitu16;
+    Floor          : array of uint16;
     MeshDataCount  : Integer;
     MeshData       : array of byte;
 
     MeshPtrCount   : Integer;
-    MeshPtr        : array of bitu32;
+    MeshPtr        : array of uint32;
 
     AnimationCount : Integer;
     Animation      : array of tr1_animation;
@@ -69,10 +69,10 @@ type
     MeshTree       : array of tr1_meshtree_raw;
 
     FrameCount     : integer;
-    Frame          : array of bitu16;
+    Frame          : array of uint16;
 
-    MoveableCount  : integer;
-    Moveable       : array of tr1_moveable;
+    ModelCount     : integer;
+    Model          : array of tr1_model;
 
     StaticMeshCount : integer;
     StaticMesh      : array of tr_staticmesh_s;
@@ -96,26 +96,26 @@ type
     Box         : array of tr1_box;
 
     OverlapCount : integer;
-    Overlap      : array of bitu16;
+    Overlap      : array of uint16;
 
     Zone         : array of tr1_zone;
 
     AnimTexCount : Integer;
-    AnimTex      : array of bitu16;
+    AnimTex      : array of uint16;
 
     ItemCount    : Integer;
     Item         : array of tr1_item;
 
-    lightmap     : array {[0..32*256-1]} of bitu8;
+    lightmap     : array {[0..32*256-1]} of uint8;
     pallette     : array {[0..255]} of tr_colour3;
 
     CinFrameCount : integer;
     CinFrame      : array of tr1_cinematic_frame;
 
     DemoDataCount : integer;
-    DemoData      : array of bitu8;
+    DemoData      : array of uint8;
 
-    SndMap        : array {[0..255]} of bit16;
+    SndMap        : array {[0..255]} of int16;
 
     SndDetailCount : Integer;
     SndDetail      : array of tr1_sound_details;
@@ -156,7 +156,7 @@ begin
   room.roomData.count:=s.ReadDWord;
   SetLength(room.roomData.data, room.roomData.count);
   if room.roomData.count>0 then
-    s.Read(room.roomData.data[0], room.roomData.count * sizeof(bitu16));
+    s.Read(room.roomData.data[0], room.roomData.count * sizeof(uint16));
   (*
   cnt:=s.ReadWord;
   //writeln('  verticies: ', cnt,' ',sizeof(tr1_vertex_room));
@@ -206,8 +206,8 @@ begin
   if room.meshesCount>0 then
     s.Read(room.meshes[0], room.meshesCount*sizeof(tr1_room_staticmesh));
 
-  room.alterRoom:=bit16(s.ReadWord);
-  room.flags:=bitu16(s.ReadWord);
+  room.alterRoom:=int16(s.ReadWord);
+  room.flags:=uint16(s.ReadWord);
 end;
 
 // DoReadLevel doesn't catch any exceptions of TStream might send
@@ -232,19 +232,19 @@ begin
   lvl.FloorCount:=s.ReadDWord;
   SetLength(lvl.Floor, lvl.FloorCount);
   if lvl.FloorCount>0 then
-    s.Read( lvl.Floor[0], lvl.FloorCount*sizeof(bitu16));
+    s.Read( lvl.Floor[0], lvl.FloorCount*sizeof(uint16));
 
   lvl.MeshDataCount:=s.ReadDWord;
   //writeln('mesh data: ', cnt);
-  SetLength(lvl.MeshData, lvl.MeshDataCount*sizeof(bitu16));
+  SetLength(lvl.MeshData, lvl.MeshDataCount*sizeof(uint16));
   if lvl.MeshDataCount>0 then
-    s.Read(lvl.MeshData[0], lvl.MeshDataCount*sizeof(bitu16));
+    s.Read(lvl.MeshData[0], lvl.MeshDataCount*sizeof(uint16));
 
   lvl.MeshPtrCount:=s.ReadDWord;
   //writeln('num mesh pointers: ', cnt);
   SetLength(lvl.MeshPtr, lvl.MeshPtrCount);
   if lvl.MeshPtrCount>0 then
-    s.Read(lvl.MeshPtr[0], lvl.MeshPtrCount*sizeof(bitu32));
+    s.Read(lvl.MeshPtr[0], lvl.MeshPtrCount*sizeof(uint32));
   //s.Position:=s.Position+cnt*4; // skipping over pointers
 
   lvl.AnimationCount:=s.ReadDWord;
@@ -284,13 +284,13 @@ begin
   //writeln('Frame Count: ', lvl.FrameCount);
   SetLength(lvl.Frame, lvl.FrameCount);
   if lvl.FrameCount>0 then
-    s.Read(lvl.Frame[0], lvl.FrameCount*sizeof(bitu16));
+    s.Read(lvl.Frame[0], lvl.FrameCount*sizeof(uint16));
 
-  lvl.MoveableCount:=s.ReadDWord;
-  //writeln('Movable Count: ', lvl.MoveableCount,' ',sizeof(tr1_moveable));
-  SetLength(lvl.Moveable, lvl.MoveableCount);
-  if lvl.MoveableCount>0 then
-    s.Read(lvl.Moveable[0], lvl.MoveableCount*sizeof(tr1_moveable));
+  lvl.ModelCount:=s.ReadDWord;
+  //writeln('Movable Count: ', lvl.ModelCount,' ',sizeof(tr1_moveable));
+  SetLength(lvl.Model, lvl.ModelCount);
+  if lvl.ModelCount>0 then
+    s.Read(lvl.Model[0], lvl.ModelCount*sizeof(tr1_model));
 
   lvl.StaticMeshCount:=s.ReadDWord;
   //writeln('static meshes: ', lvl.StaticMeshCount,' ',sizeof(tr1_staticmesh));
@@ -338,7 +338,7 @@ begin
   //writeln('overlap:  ',lvl.OverlapCount);
   SetLength(lvl.Overlap, lvl.OverlapCount);
   if lvl.OverlapCount>0 then
-    s.Read(lvl.Overlap[0], lvl.OverlapCount * sizeof(bitu16));
+    s.Read(lvl.Overlap[0], lvl.OverlapCount * sizeof(uint16));
 
   SetLength(lvl.Zone, lvl.BoxCount);
   if lvl.BoxCount>0 then
@@ -348,7 +348,7 @@ begin
   //writeln('anim textues: ', lvl.AnimTexCount);
   SetLength(lvl.AnimTex, lvl.AnimTexCount);
   if lvl.AnimTexCount>0 then
-    s.Read(lvl.AnimTex[0], lvl.AnimTexCount * sizeof(bitu16));
+    s.Read(lvl.AnimTex[0], lvl.AnimTexCount * sizeof(uint16));
 
   lvl.ItemCount:=s.ReadDWord;
   //writeln('items: ',lvl.ItemCount,' ',sizeof(tr1_item));
@@ -356,7 +356,7 @@ begin
   if lvl.ItemCount>0 then
     s.Read(lvl.Item[0], lvl.ItemCount*sizeof(tr1_item));
 
-    //lightmap     : array {[0..32*256-1]} of bitu8;
+    //lightmap     : array {[0..32*256-1]} of uint8;
     //pallette     : array {[0..255]} of tr_colour3;
   SetLength(lvl.lightmap, 32*256);
   s.Read(lvl.lightmap[0], length(lvl.lightmap));
@@ -373,11 +373,11 @@ begin
   SetLength(lvl.DemoData, lvl.DemoDataCount);
   //writeln('demo data: ', lvl.DemoDataCount);
   if lvl.DemoDataCount>0 then
-    s.Read(lvl.DemoData[0], lvl.DemoDataCount*sizeof(bitu8));
+    s.Read(lvl.DemoData[0], lvl.DemoDataCount*sizeof(uint8));
 
   SetLength(lvl.SndMap, 256);
-  //writeln('sound map: ', length(lvl.SndMap)*sizeof(bitu16));
-  s.Read(lvl.SndMap[0], length(lvl.SndMap)*sizeof(bitu16));
+  //writeln('sound map: ', length(lvl.SndMap)*sizeof(uint16));
+  s.Read(lvl.SndMap[0], length(lvl.SndMap)*sizeof(uint16));
 
   lvl.SndDetailCount:=s.ReadDWord;
   //writeln('sound details: ', lvl.SndDetailCount);
@@ -404,7 +404,7 @@ function DoReadLevel(s: TStream; var lvl: TTRlevel) : Boolean;
 begin
   //writeln('reading');
   lvl.version:=s.ReadDWord;
-  if lvl.version=TR1 then
+  if lvl.version=FILEVERSION_TR1 then
     Result:=DoReadLevel1(s, lvl)
   else
     Result:=false;
@@ -443,7 +443,7 @@ begin
 
   s.WriteDWord(room.roomData.count);
   if room.roomData.count>0 then
-    s.WriteBuffer(room.roomData.data[0], room.roomData.count*sizeof(bitu16));
+    s.WriteBuffer(room.roomData.data[0], room.roomData.count*sizeof(uint16));
 
   //cnt:=s.ReadDWord; //number of data btu16's to follow (=RoomData) (4 bytes)
 
@@ -504,15 +504,15 @@ begin
 
   s.WriteDWord(lvl.FloorCount);
   if lvl.FloorCount>0 then
-    s.Write( lvl.Floor[0],  lvl.FloorCount*sizeof(bitu16));
+    s.Write( lvl.Floor[0],  lvl.FloorCount*sizeof(uint16));
 
   s.WriteDWord(lvl.MeshDataCount);
   if lvl.MeshDataCount>0 then
-    s.Write(lvl.MeshData[0], lvl.MeshDataCount*sizeof(bitu16));
+    s.Write(lvl.MeshData[0], lvl.MeshDataCount*sizeof(uint16));
 
   s.WriteDWord(lvl.MeshPtrCount);
   if lvl.MeshPtrCount>0 then
-    s.Write(lvl.MeshPtr[0], lvl.MeshPtrCount*sizeof(bitu32));
+    s.Write(lvl.MeshPtr[0], lvl.MeshPtrCount*sizeof(uint32));
 
   s.WriteDWord(lvl.AnimationCount);
   if lvl.AnimationCount>0 then
@@ -536,11 +536,11 @@ begin
 
   s.WriteDword(lvl.FrameCount);
   if lvl.FrameCount>0 then
-    s.Write(lvl.Frame[0], lvl.FrameCount*sizeof(bitu16));
+    s.Write(lvl.Frame[0], lvl.FrameCount*sizeof(uint16));
 
-  s.WriteDWord(lvl.MoveableCount);
-  if lvl.MoveableCount>0 then
-    s.Write(lvl.Moveable[0], lvl.MoveableCount*sizeof(tr1_moveable));
+  s.WriteDWord(lvl.ModelCount);
+  if lvl.ModelCount>0 then
+    s.Write(lvl.Model[0], lvl.ModelCount*sizeof(tr1_model));
 
   s.WriteDWord(lvl.StaticMeshCount);
   if lvl.StaticMeshCount>0 then
@@ -572,14 +572,14 @@ begin
 
   s.WriteDWord(lvl.OverlapCount);
   if lvl.OverlapCount>0 then
-    s.Write(lvl.Overlap[0], lvl.OverlapCount * sizeof(bitu16));
+    s.Write(lvl.Overlap[0], lvl.OverlapCount * sizeof(uint16));
 
   if lvl.BoxCount>0 then
     s.Write(lvl.Zone[0], lvl.BoxCount * sizeof(tr1_zone));
 
   s.WriteDWord(lvl.AnimTexCount);
   if lvl.AnimTexCount>0 then
-    s.Write(lvl.AnimTex[0], lvl.AnimTexCount * sizeof(bitu16));
+    s.Write(lvl.AnimTex[0], lvl.AnimTexCount * sizeof(uint16));
 
   s.WriteDword(lvl.ItemCount);
   if lvl.ItemCount>0 then
@@ -596,10 +596,10 @@ begin
 
   s.WriteWord(lvl.DemoDataCount);
   if lvl.DemoDataCount>0 then
-    s.Write(lvl.DemoData[0], lvl.DemoDataCount*sizeof(bitu8));
+    s.Write(lvl.DemoData[0], lvl.DemoDataCount*sizeof(uint8));
 
   if length(lvl.SndMap)>0 then
-    s.Write(lvl.SndMap[0], length(lvl.SndMap)*sizeof(bitu16));
+    s.Write(lvl.SndMap[0], length(lvl.SndMap)*sizeof(uint16));
 
   s.WriteDWord(lvl.SndDetailCount);
   if lvl.SndDetailCount>0 then
