@@ -145,6 +145,7 @@ const
     ($05,$00,$04,$00,$11,$00,$EE,$00,$00,$00,$06,$00,$05,$00,$04,$00,$23,$00,$00,$00,$FC,$FF,$23,$00,$FB,$FF,$04,$00,$23,$00,$06,$00,$05,$00,$00,$00,$00,$00,$FB,$FF,$00,$00,$FA,$FF,$06,$00,$00,$00,$06,$00,$6B,$26,$C9,$14,$54,$2E,$CE,$FE,$EC,$D3,$EF,$2D,$CE,$DA,$D2,$16,$5E,$2E,$CC,$28,$12,$16,$61,$D4,$C1,$FE,$0E,$D2,$F0,$D3,$6D,$D8,$47,$18,$6D,$D4,$00,$00,$00,$00,$03,$00,$00,$00,$03,$00,$04,$00,$01,$00,$05,$00,$01,$00,$04,$00,$05,$00,$02,$00,$05,$00,$02,$00,$05,$00,$03,$00,$00,$00,$05,$00,$02,$00,$01,$00,$02,$00,$00,$00,$05,$00,$04,$00,$03,$00,$05,$00,$05,$00)
   );
 
+procedure DumpLevel(const lvl:TTR1Level);
 
 implementation
 
@@ -214,6 +215,7 @@ end;
 function DoReadLevel1(const s: TStream; var lvl: TTR1level): Boolean;
 var
   i : integer;
+  fallback : Int64;
 begin
   lvl.PaletteCount:=s.ReadDword;
   //lvl.PaletteOffset:=s.Position;
@@ -222,6 +224,7 @@ begin
     s.Read(lvl.Palette[0], lvl.PaletteCount*sizeof(tr_textile8_t));
 
   lvl.unused:=s.ReadDWord;
+  //writeln('unused value = ', lvl.unused);
 
   lvl.RoomCount:=s.ReadWord;
   SetLength(lvl.Rooms, lvl.RoomCount);
@@ -235,13 +238,13 @@ begin
     s.Read( lvl.Floor[0], lvl.FloorCount*sizeof(uint16));
 
   lvl.MeshDataCount:=s.ReadDWord;
-  //writeln('mesh data: ', cnt);
+  //writeln('mesh data: ', lvl.MeshDataCount);
   SetLength(lvl.MeshData, lvl.MeshDataCount*sizeof(uint16));
   if lvl.MeshDataCount>0 then
     s.Read(lvl.MeshData[0], lvl.MeshDataCount*sizeof(uint16));
 
   lvl.MeshPtrCount:=s.ReadDWord;
-  //writeln('num mesh pointers: ', cnt);
+  //writeln('num mesh pointers: ', lvl.MeshPtrCount);
   SetLength(lvl.MeshPtr, lvl.MeshPtrCount);
   if lvl.MeshPtrCount>0 then
     s.Read(lvl.MeshPtr[0], lvl.MeshPtrCount*sizeof(uint32));
@@ -287,7 +290,7 @@ begin
     s.Read(lvl.Frame[0], lvl.FrameCount*sizeof(uint16));
 
   lvl.ModelCount:=s.ReadDWord;
-  //writeln('Movable Count: ', lvl.ModelCount,' ',sizeof(tr1_moveable));
+  //writeln('Movable Count: ', lvl.ModelCount,' ',sizeof(tr1_model));
   SetLength(lvl.Model, lvl.ModelCount);
   if lvl.ModelCount>0 then
     s.Read(lvl.Model[0], lvl.ModelCount*sizeof(tr1_model));
@@ -363,28 +366,41 @@ begin
   SetLength(lvl.pallette, 256);
   s.Read(lvl.pallette[0], length(lvl.pallette)*sizeof(tr_colour3));
 
+  fallback:=s.Position;
+
   lvl.CinFrameCount:=s.ReadWord;
   SetLength(lvl.CinFrame, lvl.CinFrameCount);
   //writeln('cinematic: ',lvl.CinFrameCount,' ',sizeof(tr1_camera));
   if lvl.CinFrameCount>0 then
     s.Read(lvl.CinFrame[0], lvl.CinFrameCount*sizeof(tr1_camera));
 
+  // 142ECA
   lvl.DemoDataCount:=s.ReadWord;
   SetLength(lvl.DemoData, lvl.DemoDataCount);
-  //writeln('demo data: ', lvl.DemoDataCount);
-  if lvl.DemoDataCount>0 then
+  if lvl.DemoDataCount>0 then begin
     s.Read(lvl.DemoData[0], lvl.DemoDataCount*sizeof(uint8));
+  end;
+  //writeln('after demo: ', s.Position,' ', IntToHex(s.Position,8));
 
   SetLength(lvl.SndMap, 256);
-  //writeln('sound map: ', length(lvl.SndMap)*sizeof(uint16));
   s.Read(lvl.SndMap[0], length(lvl.SndMap)*sizeof(uint16));
 
   lvl.SndDetailCount:=s.ReadDWord;
-  //writeln('sound details: ', lvl.SndDetailCount);
+  if (s.Position + sizeof(tr1_sound_details)*lvl.SndDetailCount > s.Size) and (s.Size>0) then begin
+    // ok, this seems to be an earlier demo level of TR1
+    // it doesn't have any demo data or cin frames, SndMap must also be reread
+    s.Position:=fallback;
+    lvl.CinFrameCount:=0;
+    lvl.DemoDataCount:=0;
+    s.Read(lvl.SndMap[0], length(lvl.SndMap)*sizeof(uint16));
+    lvl.SndDetailCount:=s.ReadDWord;
+  end;
+
   SetLength(lvl.SndDetail, lvl.SndDetailCount);
   if lvl.SndDetailCount>0 then
     s.Read(lvl.SndDetail[0], sizeof(tr1_sound_details)*lvl.SndDetailCount);
 
+  //writeln('before samples: ', s.Position,' ', IntToHex(s.Position,8),' wanted = $1430CA');
   lvl.SamplesCount:=s.ReadDWord;
   //writeln('samples size: ', lvl.SamplesCount);
   SetLength(lvl.SamplesData, lvl.SamplesCount);
@@ -595,8 +611,9 @@ begin
     s.Write(lvl.CinFrame[0], lvl.CinFrameCount*sizeof(tr1_camera));
 
   s.WriteWord(lvl.DemoDataCount);
-  if lvl.DemoDataCount>0 then
+  if lvl.DemoDataCount>0 then begin
     s.Write(lvl.DemoData[0], lvl.DemoDataCount*sizeof(uint8));
+  end;
 
   if length(lvl.SndMap)>0 then
     s.Write(lvl.SndMap[0], length(lvl.SndMap)*sizeof(uint16));
@@ -656,5 +673,11 @@ begin
   except
   end;
 end;
+
+procedure DumpLevel(const lvl: TTR1Level);
+begin
+  //lvl.ro
+end;
+
 end.
 
