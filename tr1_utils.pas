@@ -127,8 +127,8 @@ type
     SampleIndex      : array of UInt32;
   end;
 
-function ReadLevel(s: TStream; var lvl: TTR1level): Boolean; overload;
-function ReadLevel(const fn: string; var lvl: TTR1level): Boolean; overload;
+function ReadLevel(s: TStream; var lvl: TTR1level; aforced: Boolean = false): Boolean; overload;
+function ReadLevel(const fn: string; var lvl: TTR1level; aforced: Boolean = false): Boolean; overload;
 
 function WriteLevel(s: TStream; const lvl: TTR1level): Boolean; overload;
 function WriteLevel(const fn: string; const lvl: TTR1level): Boolean; overload;
@@ -146,6 +146,12 @@ const
   );
 
 procedure DumpLevel(const lvl:TTR1Level);
+
+function ReadDemoWAD1(s: TStream; var lvl: TTR1level; aforced: Boolean = false): Boolean; overload;
+function ReadDemoWAD1(const fn: string; var lvl: TTR1level; aforced: Boolean = false): Boolean; overload;
+
+var
+  TR1Debug : Boolean = false;
 
 implementation
 
@@ -190,19 +196,25 @@ begin
     s.Read( room.sectors[0], room.zSector*room.xSector*sizeof(tr1_room_sector));
   //s.Position:=s.Position+(room.zSector*room.xSector*sizeof(tr1_room_sector));
 
-  //writeln('  sectors: ', room.zSector,'x',room.xSector,' sizeof ',sizeof(tr1_room_sector));
+  if TR1Debug then
+    writeln('  sectors: ', room.zSector,'x',room.xSector,' sizeof ',sizeof(tr1_room_sector));
+
   room.intensity:=s.ReadWord;
   room.lightsCount:=s.ReadWord;
   SetLength(room.light, room.lightsCount);
 
-  //writeln('  lights:    ', room.lightsCount,' sizeof ',sizeof(tr1_room_light));
+  if TR1Debug then
+    writeln('  lights:    ', room.lightsCount,' sizeof ',sizeof(tr1_room_light));
 
   if room.lightsCount>0 then
     s.Read(room.light[0], room.lightsCount*sizeof(tr1_room_light));
     //s.Position:=s.Position+(room.lightsCount*sizeof(tr1_room_light));
 
   room.meshesCount:=s.ReadWord;
-  //writeln('  meshes:    ', room.meshesCount,' sizeof ',sizeof(tr1_room_staticmesh));
+
+  if TR1Debug then
+    writeln('  meshes:    ', room.meshesCount,' sizeof ',sizeof(tr1_room_staticmesh));
+
   SetLength(room.meshes, room.meshesCount);
   if room.meshesCount>0 then
     s.Read(room.meshes[0], room.meshesCount*sizeof(tr1_room_staticmesh));
@@ -224,7 +236,9 @@ begin
     s.Read(lvl.Palette[0], lvl.PaletteCount*sizeof(tr_textile8_t));
 
   lvl.unused:=s.ReadDWord;
-  //writeln('unused value = ', lvl.unused);
+
+  if TR1Debug then
+    writeln('unused value = ', lvl.unused);
 
   lvl.RoomCount:=s.ReadWord;
   SetLength(lvl.Rooms, lvl.RoomCount);
@@ -238,107 +252,158 @@ begin
     s.Read( lvl.Floor[0], lvl.FloorCount*sizeof(uint16));
 
   lvl.MeshDataCount:=s.ReadDWord;
-  //writeln('mesh data: ', lvl.MeshDataCount);
+
+  if TR1Debug then
+    writeln('mesh data: ', lvl.MeshDataCount);
+
   SetLength(lvl.MeshData, lvl.MeshDataCount*sizeof(uint16));
   if lvl.MeshDataCount>0 then
     s.Read(lvl.MeshData[0], lvl.MeshDataCount*sizeof(uint16));
 
   lvl.MeshPtrCount:=s.ReadDWord;
-  //writeln('num mesh pointers: ', lvl.MeshPtrCount);
+
+  if TR1Debug then
+    writeln('num mesh pointers: ', lvl.MeshPtrCount);
+
   SetLength(lvl.MeshPtr, lvl.MeshPtrCount);
   if lvl.MeshPtrCount>0 then
     s.Read(lvl.MeshPtr[0], lvl.MeshPtrCount*sizeof(uint32));
   //s.Position:=s.Position+cnt*4; // skipping over pointers
 
   lvl.AnimationCount:=s.ReadDWord;
-  //writeln('num of animations: ', lvl.AnimationCount,' ',sizeof(tr1_animation));
+
+  if TR1Debug then
+    writeln('num of animations: ', lvl.AnimationCount,' ',sizeof(tr1_animation));
+
   SetLength(lvl.Animation, lvl.AnimationCount);
   if lvl.AnimationCount>0 then begin
     s.Read(lvl.Animation[0], length(lvl.Animation)*sizeof(tr1_animation));
   end;
 
   lvl.StateChCount:=s.ReadDWord;
-  //writeln('state changes: ', lvl.StateChCount,' ',sizeof(tr_state_change));
+
+  if TR1Debug then
+    writeln('state changes: ', lvl.StateChCount,' ',sizeof(tr_state_change));
+
   SetLength(lvl.StateCh, lvl.StateChCount);
   if lvl.StateChCount>0 then begin
     s.Read(lvl.StateCh[0], length(lvl.StateCh)*sizeof(tr_state_change));
   end;
 
   lvl.AnimDispCount:=s.ReadDWord;
-  //writeln('anim disp: ', lvl.AnimationCount,' ',sizeof(tr_anim_dispatch));
+
+  if TR1Debug then
+    writeln('anim disp: ', lvl.AnimationCount,' ',sizeof(tr_anim_dispatch));
+
   SetLength(lvl.AnimDisp, lvl.AnimDispCount);
   if lvl.AnimDispCount>0 then begin
     s.Read(lvl.AnimDisp[0], length(lvl.AnimDisp)*sizeof(tr_anim_dispatch));
   end;
 
   lvl.AnimCmdCount:=s.ReadDword;
-  //writeln('anim cmd: ', lvl.AnimCmdCount,' ',sizeof(tr_anim_command));
+
+  if TR1Debug then
+    writeln('anim cmd: ', lvl.AnimCmdCount,' ',sizeof(tr_anim_command));
+
   SetLength(lvl.AnimCmd, lvl.AnimCmdCount);
   if lvl.AnimCmdCount>0 then
     s.Read(lvl.AnimCmd[0], lvl.AnimCmdCount*sizeof(tr_anim_command));
 
   lvl.MeshTreeCount:=s.ReadDWord;
-  //writeln('mesh tree: ', lvl.MeshTreeCount,' ',sizeof(tr1_meshtree_raw));
+
+  if TR1Debug then
+    writeln('mesh tree: ', lvl.MeshTreeCount,' ',sizeof(tr1_meshtree_raw));
+
   SetLength(lvl.MeshTree, lvl.MeshTreeCount);
   if lvl.MeshTreeCount>0 then
     s.Read(lvl.MeshTree[0], lvl.MeshTreeCount*sizeof(tr1_meshtree_raw));
 
   lvl.FrameCount:=s.ReadDWord;
-  //writeln('Frame Count: ', lvl.FrameCount);
+
+  if TR1Debug then
+    writeln('Frame Count: ', lvl.FrameCount);
+
   SetLength(lvl.Frame, lvl.FrameCount);
   if lvl.FrameCount>0 then
     s.Read(lvl.Frame[0], lvl.FrameCount*sizeof(uint16));
 
   lvl.ModelCount:=s.ReadDWord;
-  //writeln('Movable Count: ', lvl.ModelCount,' ',sizeof(tr1_model));
+
+  if TR1Debug then
+    writeln('Movable Count: ', lvl.ModelCount,' ',sizeof(tr1_model));
+
   SetLength(lvl.Model, lvl.ModelCount);
   if lvl.ModelCount>0 then
     s.Read(lvl.Model[0], lvl.ModelCount*sizeof(tr1_model));
 
   lvl.StaticMeshCount:=s.ReadDWord;
-  //writeln('static meshes: ', lvl.StaticMeshCount,' ',sizeof(tr1_staticmesh));
+
+  if TR1Debug then
+    writeln('static meshes: ', lvl.StaticMeshCount,' ',sizeof(tr1_staticmesh));
+
   SetLength(lvl.StaticMesh, lvl.StaticMeshCount);
   if lvl.StaticMeshCount>0 then
     s.Read(lvl.StaticMesh[0], lvl.StaticMeshCount * sizeof(tr1_staticmesh));
 
   lvl.ObjTexCount:=s.ReadDword;
-  //writeln('object textures: ', lvl.ObjTexCount,' ',sizeof(tr1_object_texture));
+
+  if TR1Debug then
+    writeln('object textures: ', lvl.ObjTexCount,' ',sizeof(tr1_object_texture));
+
   SetLength(lvl.ObjTex, lvl.ObjTexCount);
   if lvl.ObjTexCount>0 then
     s.Read(lvl.ObjTex[0], lvl.ObjTexCount * sizeof(tr1_object_texture));
 
   lvl.SprTexCount:=s.ReadDword;
   SetLength(lvl.SprTex, lvl.SprTexCount);
-  //writeln('sprite textures: ', lvl.SprTexCount,' ',sizeof(tr1_sprite_texture));
+
+  if TR1Debug then
+    writeln('sprite textures: ', lvl.SprTexCount,' ',sizeof(tr1_sprite_texture));
+
   if lvl.ObjTexCount>0 then
     s.Read(lvl.SprTex[0], lvl.SprTexCount * sizeof(tr1_sprite_texture));
 
   lvl.SprSeqCount:=s.ReadDWord;
   SetLength(lvl.SprSeq, lvl.SprSeqCount);
-  //writeln('sprite sequence: ', lvl.SprSeqCount,' ',sizeof(tr1_sprite_sequence));
+
+  if TR1Debug then
+    writeln('sprite sequence: ', lvl.SprSeqCount,' ',sizeof(tr1_sprite_sequence));
+
   if lvl.SprSeqCount>0 then
     s.Read(lvl.SprSeq[0], lvl.SprSeqCount * sizeof(tr1_sprite_sequence));
 
   lvl.CameraCount:=s.ReadDWord;
   SetLength(lvl.Camera, lvl.CameraCount);
-  //writeln('camera: ', lvl.CameraCount,' ',sizeof(tr1_camera));
+
+  if TR1Debug then
+    writeln('camera: ', lvl.CameraCount,' ',sizeof(tr1_camera));
+
   if lvl.CameraCount>0 then
     s.Read(lvl.Camera[0], lvl.CameraCount * sizeof(tr1_camera));
 
   lvl.SndSrcCount:=s.ReadDWord;
   SetLength(lvl.SndSrc, lvl.SndSrcCount);
-  //writeln('sound sources: ', lvl.SndSrcCount,' ',sizeof(tr1_sound_source));
+
+  if TR1Debug then
+    writeln('sound sources: ', lvl.SndSrcCount,' ',sizeof(tr1_sound_source));
+
   if lvl.SndSrcCount>0 then
     s.Read(lvl.SndSrc[0], lvl.SndSrcCount * sizeof(tr1_sound_source));
 
   lvl.BoxCount:=s.ReadDWord;
   SetLength(lvl.Box, lvl.BoxCount);
-  //writeln('box: ', lvl.BoxCount,' ',sizeof(tr1_box));
+
+  if TR1Debug then
+    writeln('box: ', lvl.BoxCount,' ',sizeof(tr1_box));
+
   if lvl.BoxCount>0 then
     s.Read(lvl.Box[0], lvl.BoxCount * sizeof(tr1_box));
 
   lvl.OverlapCount:=s.ReadDWord;
-  //writeln('overlap:  ',lvl.OverlapCount);
+
+  if TR1Debug then
+    writeln('overlap:  ',lvl.OverlapCount);
+
   SetLength(lvl.Overlap, lvl.OverlapCount);
   if lvl.OverlapCount>0 then
     s.Read(lvl.Overlap[0], lvl.OverlapCount * sizeof(uint16));
@@ -348,13 +413,19 @@ begin
     s.Read(lvl.Zone[0], lvl.BoxCount * sizeof(tr1_zone));
 
   lvl.AnimTexCount:=s.ReadDWord;
-  //writeln('anim textues: ', lvl.AnimTexCount);
+
+  if TR1Debug then
+    writeln('anim textues: ', lvl.AnimTexCount);
+
   SetLength(lvl.AnimTex, lvl.AnimTexCount);
   if lvl.AnimTexCount>0 then
     s.Read(lvl.AnimTex[0], lvl.AnimTexCount * sizeof(uint16));
 
   lvl.ItemCount:=s.ReadDWord;
-  //writeln('items: ',lvl.ItemCount,' ',sizeof(tr1_item));
+
+  if TR1Debug then
+    writeln('items: ',lvl.ItemCount,' ',sizeof(tr1_item));
+
   SetLength(lvl.Item, lvl.ItemCount);
   if lvl.ItemCount>0 then
     s.Read(lvl.Item[0], lvl.ItemCount*sizeof(tr1_item));
@@ -370,7 +441,10 @@ begin
 
   lvl.CinFrameCount:=s.ReadWord;
   SetLength(lvl.CinFrame, lvl.CinFrameCount);
-  //writeln('cinematic: ',lvl.CinFrameCount,' ',sizeof(tr1_camera));
+
+  if TR1Debug then
+    writeln('cinematic: ',lvl.CinFrameCount,' ',sizeof(tr1_camera));
+
   if lvl.CinFrameCount>0 then
     s.Read(lvl.CinFrame[0], lvl.CinFrameCount*sizeof(tr1_camera));
 
@@ -380,7 +454,9 @@ begin
   if lvl.DemoDataCount>0 then begin
     s.Read(lvl.DemoData[0], lvl.DemoDataCount*sizeof(uint8));
   end;
-  //writeln('after demo: ', s.Position,' ', IntToHex(s.Position,8));
+
+  if TR1Debug then
+    writeln('after demo: ', s.Position,' ', IntToHex(s.Position,8));
 
   SetLength(lvl.SndMap, 256);
   s.Read(lvl.SndMap[0], length(lvl.SndMap)*sizeof(uint16));
@@ -400,36 +476,48 @@ begin
   if lvl.SndDetailCount>0 then
     s.Read(lvl.SndDetail[0], sizeof(tr1_sound_details)*lvl.SndDetailCount);
 
-  //writeln('before samples: ', s.Position,' ', IntToHex(s.Position,8),' wanted = $1430CA');
+  if TR1Debug then
+    writeln('before samples: ', s.Position,' ', IntToHex(s.Position,8),' wanted = $1430CA');
+
   lvl.SamplesCount:=s.ReadDWord;
-  //writeln('samples size: ', lvl.SamplesCount);
+
+  if TR1Debug then
+    writeln('samples size: ', lvl.SamplesCount);
+
   SetLength(lvl.SamplesData, lvl.SamplesCount);
   if lvl.SamplesCount>0 then
     s.Read(lvl.SamplesData[0], lvl.SamplesCount);
 
   lvl.SampleIndexCount := s.ReadDWord;
   SetLength(lvl.SampleIndex, lvl.SampleIndexCount);
-  //writeln('sample index: ', lvl.SampleIndexCount);
+
+  if TR1Debug then
+    writeln('sample index: ', lvl.SampleIndexCount);
+
   if lvl.SampleIndexCount> 0 then
     s.Read(lvl.SampleIndex[0], lvl.SampleIndexCount*sizeof(UInt32));
 
   Result:=true;
 end;
 
-function DoReadLevel(s: TStream; var lvl: TTR1level) : Boolean;
+function DoReadLevel(s: TStream; var lvl: TTR1level; aforced: Boolean = false) : Boolean;
 begin
-  //writeln('reading');
+  if TR1Debug then
+    writeln('reading');
   lvl.version:=s.ReadDWord;
-  if lvl.version=FILEVERSION_TR1 then
+  if TR1Debug then
+    writeln('version: ',lvl.version,' ',IntToHex(lvl.version,8));
+
+  if (lvl.version=FILEVERSION_TR1) or aforced then
     Result:=DoReadLevel1(s, lvl)
   else
     Result:=false;
 end;
 
-function ReadLevel(s: TStream; var lvl: TTR1level): Boolean;
+function ReadLevel(s: TStream; var lvl: TTR1level; aforced: Boolean = false): Boolean;
 begin
   try
-    Result:=DoReadLevel(s, lvl);
+    Result:=DoReadLevel(s, lvl, Aforced);
   except
     on e:exception do begin
       Result:=false;
@@ -437,14 +525,14 @@ begin
   end;
 end;
 
-function ReadLevel(const fn: string; var lvl: TTR1level): Boolean;
+function ReadLevel(const fn: string; var lvl: TTR1level; aforced: Boolean): Boolean;
 var
   fs : TfileStream;
 begin
   try
     fs := TfileStream.Create(fn, fmOpenRead or fmShareDenyNone);;
     try
-      Result:=ReadLevel(fs, lvl);
+      Result:=ReadLevel(fs, lvl, aforced);
     finally
       fs.Free;
     end;
@@ -677,6 +765,110 @@ end;
 procedure DumpLevel(const lvl: TTR1Level);
 begin
   //lvl.ro
+end;
+
+procedure DebugData(const prefix: string; num, bytesize, ofs: Integer);
+begin
+  writeln(prefix,' ',num:8,' bytes=', bytesize:9,' at ', IntToHex(ofs, 8));
+end;
+
+function ReadDemoWAD1(s: TStream; var lvl: TTR1level; aforced: Boolean): Boolean;
+var
+  v : LongWord;
+  c : LongWord;
+
+  ofs : int64;
+  k   : integer;
+  cc  : integer;
+begin
+  v:=s.ReadDWord;
+  writeln('version: ', v, ' ', IntTOHex(v,8));
+  Result:=true;
+  c:=s.ReadDWord;
+  DebugData('num1: ', c, c*8, s.Position);
+  s.Position:=s.Position+c*8;
+
+  c:=s.ReadDWord; // mesh data? textures?
+  DebugData('num2: ', c, c, s.Position);
+  s.Position:=s.Position+c;
+
+  c:=s.ReadDword; // Mesh pointers?
+  DebugData('num3: ', c, c*4, s.Position);
+  s.Position:=s.Position+c*4;
+
+  c:=s.ReadDword; // mesh pointers?
+  DebugData('num4: ', c, c*2, s.Position);
+  s.Position:=s.Position+c*2;
+
+  c:=s.ReadDword; // AnimChanges?
+  DebugData('num5: ', c, c*26, s.Position);
+  s.Position:=s.Position+c*26;
+
+  c:=s.ReadDword; // State Changes?
+  DebugData('num6: ', c, c*6, s.Position);
+  s.Position:=s.Position+c*6;
+
+  c:=s.ReadDword; // Anim Dispatches ?
+  DebugData('num7: ', c, c*8, s.Position);
+  s.Position:=s.Position+c*8;
+
+  c:=s.ReadDword;  //?
+  DebugData('num8: ', c, c*2, s.Position);
+  s.Position:=s.Position+c*2;
+
+  c:=s.ReadDword;
+  DebugData('num9: ', c, c*4, s.Position);
+  s.Position:=s.Position+c*4;
+
+  // it also seems, that C-12 might be correct
+  //s.Position:=s.Position+c*12;
+
+  c:=s.ReadDword;
+  DebugData('num10:', c, c*2, s.Position);
+  s.Position:=s.Position+c*2;
+
+  c:=s.ReadDword;
+  DebugData('num11:', c, c*6, s.Position);
+  writeln('s.size = ', s.size,' ',s.size-s.position,' ',(s.size-s.position)/c:0:2,' ',s.position+c*6);
+  s.Position:=s.Position+c*6;
+
+  writeln(s.size - s.position);
+
+  //c:=s.ReadDword;
+  //DebugData('num?: ', c, c*4, s.Position);
+
+
+
+  //k:=2;
+  //ofs:=s.Position;
+  //cc:=c;
+  {while k<200 do begin
+    writeln('test size: ' , k);
+
+    if s.Position+cc*k+4<s.Size then begin
+      s.Position:=s.Position+cc*k;
+      c:=s.ReadDword;
+      DebugData('num?: ', c, c*4, s.Position);
+    end;
+
+  //  ...36  62..80
+
+    k:=k+2;
+    s.Position:=ofs;
+  end;}
+end;
+
+function ReadDemoWAD1(const fn: string; var lvl: TTR1level; aforced: Boolean): Boolean;
+var
+  fs : TFileStream;
+begin
+  fs := TFileStream.Create(fn, fmOpenRead or fmShareDenyNone);
+  try
+    writeln('reading wad: ', fn);
+    Result:=ReadDemoWad1(fs, lvl);
+  finally
+    fs.Free;
+  end;
 end;
 
 end.
