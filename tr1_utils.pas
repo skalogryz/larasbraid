@@ -37,9 +37,9 @@ type
   TTR1Level = record
     version : LongWord;
 
-    PaletteCount  : LongWord;
+    TextTileCount  : LongWord;
     //PaletteOffset : QWord; // offset in the file
-    Palette       : array of tr_textile8_t;
+    TextTile      : array of tr_textile8_t;
     unused        : LongWord;
 
     RoomCount  : LongWord;
@@ -237,11 +237,10 @@ var
   i : integer;
   fallback : Int64;
 begin
-  lvl.PaletteCount:=s.ReadDword;
-  //lvl.PaletteOffset:=s.Position;
-  SetLength(lvl.Palette, lvl.PaletteCount);
-  if lvl.PaletteCount>0 then
-    s.Read(lvl.Palette[0], lvl.PaletteCount*sizeof(tr_textile8_t));
+  lvl.TextTileCount:=s.ReadDword;
+  SetLength(lvl.TextTile, lvl.TextTileCount);
+  if lvl.TextTileCount>0 then
+    s.Read(lvl.TextTile[0], lvl.TextTileCount*sizeof(tr_textile8_t));
 
   lvl.unused:=s.ReadDWord;
 
@@ -605,9 +604,9 @@ var
   i : integer;
 begin
   s.WriteDWord(lvl.version);
-  s.WriteDWord(lvl.PaletteCount);
-  if lvl.PaletteCount>0 then
-    s.Write(lvl.Palette[0], lvl.PaletteCount*sizeof(tr_textile8_t));
+  s.WriteDWord(lvl.TextTileCount);
+  if lvl.TextTileCount>0 then
+    s.Write(lvl.TextTile[0], lvl.TextTileCount*sizeof(tr_textile8_t));
   s.WriteDWord(lvl.unused);
 
   s.WriteWord(lvl.RoomCount);
