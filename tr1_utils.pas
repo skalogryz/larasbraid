@@ -145,10 +145,14 @@ const
     ($05,$00,$04,$00,$11,$00,$EE,$00,$00,$00,$06,$00,$05,$00,$04,$00,$23,$00,$00,$00,$FC,$FF,$23,$00,$FB,$FF,$04,$00,$23,$00,$06,$00,$05,$00,$00,$00,$00,$00,$FB,$FF,$00,$00,$FA,$FF,$06,$00,$00,$00,$06,$00,$6B,$26,$C9,$14,$54,$2E,$CE,$FE,$EC,$D3,$EF,$2D,$CE,$DA,$D2,$16,$5E,$2E,$CC,$28,$12,$16,$61,$D4,$C1,$FE,$0E,$D2,$F0,$D3,$6D,$D8,$47,$18,$6D,$D4,$00,$00,$00,$00,$03,$00,$00,$00,$03,$00,$04,$00,$01,$00,$05,$00,$01,$00,$04,$00,$05,$00,$02,$00,$05,$00,$02,$00,$05,$00,$03,$00,$00,$00,$05,$00,$02,$00,$01,$00,$02,$00,$00,$00,$05,$00,$04,$00,$03,$00,$05,$00,$05,$00)
   );
 
+procedure DumpModels(const models: array of tr1_model; modelsCount: Integer);
 procedure DumpLevel(const lvl:TTR1Level);
 
 function ReadDemoWAD1(s: TStream; var lvl: TTR1level; aforced: Boolean = false): Boolean; overload;
 function ReadDemoWAD1(const fn: string; var lvl: TTR1level; aforced: Boolean = false): Boolean; overload;
+
+function ReadDemoTOM(s: TStream; var lvl: TTR1level; aforced: Boolean = false): Boolean; overload;
+function ReadDemoTOM(const fn: string; var lvl: TTR1level; aforced: Boolean = false): Boolean; overload;
 
 var
   TR1Debug : Boolean = false;
@@ -762,6 +766,20 @@ begin
   end;
 end;
 
+procedure DumpModels(const models: array of tr1_model; modelsCount: Integer);
+var
+  i : integer;
+begin
+  for i:=0 to modelsCount-1 do begin
+    writelN('#',i,' id = ', models[i].object_id);
+    writeln('  num meshes: ', models[i].num_meshes);
+    writeln('  start mesh: ', models[i].starting_mesh);
+    writeln('  tree idx:   ', models[i].mesh_tree_index);
+    writeln('  frame ofs:  ', models[i].frame_offset);
+    writeln('  anim idx:   ', models[i].animation_index);
+  end;
+end;
+
 procedure DumpLevel(const lvl: TTR1Level);
 begin
   //lvl.ro
@@ -781,6 +799,83 @@ var
   k   : integer;
   cc  : integer;
 begin
+  v:=s.ReadDWord;
+  writeln('version: ', v, ' ', IntTOHex(v,8));
+  Result:=true;
+  c:=s.ReadDWord;
+  DebugData('num1: ', c, c*8, s.Position);
+  s.Position:=s.Position+c*8;
+
+  c:=s.ReadDWord; // mesh data? textures?
+  DebugData('num2: ', c, c, s.Position);
+  s.Position:=s.Position+c;
+
+  lvl.MeshPtrCount:=s.ReadDword; // Mesh Pointers
+  SetLength(lvl.MeshPtr, lvl.MeshPtrCount);
+  if lvl.MeshPtrCount>0 then
+    s.Read(lvl.MeshPtr[0], lvl.MeshPtrCount*4);
+
+
+  lvl.MeshDataCount:=s.ReadDword; // mesh
+  //DebugData('num4: ', c, c*2, s.Position);
+  SetLength(lvl.MeshData, lvl.MeshDataCount*2);
+  if lvl.MeshDataCount>0 then
+    s.Read(lvl.MeshData[0], lvl.MeshDataCount*2);
+
+  c:=s.ReadDword; // AnimChanges?
+  DebugData('num5: ', c, c*26, s.Position);
+  s.Position:=s.Position+c*26;
+
+  lvl.StateChCount:=s.ReadDword; // State Changes?
+  //DebugData('num6: ', c, c*6, s.Position);
+  SetLength(lvl.StateCh, lvl.StateChCount);
+  //s.Position:=s.Position+c*6;
+  if lvl.StateChCount>0 then
+    s.Read(lvl.StateCh[0], lvl.StateChCount*SizeOf(tr_state_change));
+
+  lvl.AnimDispCount:=s.ReadDword; // Anim Dispatches ?
+  SetLength(lvl.AnimDisp, lvl.AnimDispCount);
+  if lvl.AnimDispCount>0 then
+    s.Read(lvl.AnimDisp[0], lvl.AnimDispCount*sizeof(tr_anim_dispatch));
+  //DebugData('num7: ', c, c*8, s.Position);
+  //s.Position:=s.Position+c*8;
+
+  lvl.AnimCmdCount:=s.ReadDword;  //?
+  //DebugData('num8: ', c, c*2, s.Position);
+  SetLength(lvl.AnimCmd, lvl.AnimCmdCount);
+  if lvl.AnimCmdCount>0 then
+    s.Read(lvl.AnimCmd[0], lvl.AnimCmdCount*2);
+
+  //s.Position:=s.Position+c*2;
+
+  lvl.MeshTreeCount:=s.ReadDword;
+  //DebugData('num9: ', c, c*4, s.Position);
+  SetLength(lvl.MeshTree, lvl.MeshTreeCount);
+  if lvl.MeshTreeCount>0 then
+    s.Read(lvl.MeshTree[0], lvl.MeshTreeCount*4);
+  //s.Position:=s.Position+c*4;
+
+  // it also seems, that C-12 might be correct
+  //s.Position:=s.Position+c*12;
+
+  lvl.FrameCount:=s.ReadDword;
+  SetLength(lvl.Frame, lvl.FrameCount);
+  //DebugData('num10:', c, c*2, s.Position);
+  //s.Position:=s.Position+c*2;
+  if lvl.FrameCount>0 then
+    s.Read(lvl.Frame[0], lvl.FrameCount*2);
+
+  lvl.ModelCount:=s.ReadDword;
+  SetLength(lvl.Model, lvl.ModelCount);
+  if lvl.ModelCount>0 then
+    s.Read(lvl.Model[0], lvl.ModelCount*sizeof(tr1_model));
+
+  //DebugData('num11:', c, c*8, s.Position);
+  //writeln('s.size = ', s.size,' ',s.size-s.position,' ',(s.size-s.position)/c:0:2,' ',s.position+c*6);
+  //s.Position:=s.Position+c*8;
+  writeln('data left: ', s.size - s.position);
+
+(*
   v:=s.ReadDWord;
   writeln('version: ', v, ' ', IntTOHex(v,8));
   Result:=true;
@@ -828,16 +923,20 @@ begin
   s.Position:=s.Position+c*2;
 
   c:=s.ReadDword;
-  DebugData('num11:', c, c*6, s.Position);
+  DebugData('num11:', c, c*18, s.Position);
   writeln('s.size = ', s.size,' ',s.size-s.position,' ',(s.size-s.position)/c:0:2,' ',s.position+c*6);
-  s.Position:=s.Position+c*6;
+  s.Position:=s.Position+c*18;
 
   writeln(s.size - s.position);
 
+  c:=s.ReadDword;
+  DebugData('num12: ', c, c*16, s.Position);
+  s.Position:=s.Position+c*16;
+
+  writeln(s.size - s.position);
+*)
   //c:=s.ReadDword;
-  //DebugData('num?: ', c, c*4, s.Position);
-
-
+  //DebugData('num?: ', c, c*16, s.Position);
 
   //k:=2;
   //ofs:=s.Position;
@@ -859,6 +958,34 @@ begin
 end;
 
 function ReadDemoWAD1(const fn: string; var lvl: TTR1level; aforced: Boolean): Boolean;
+var
+  fs : TFileStream;
+begin
+  fs := TFileStream.Create(fn, fmOpenRead or fmShareDenyNone);
+  try
+    writeln('reading wad: ', fn);
+    Result:=ReadDemoWad1(fs, lvl);
+  finally
+    fs.Free;
+  end;
+end;
+
+function ReadDemoTOM(s: TStream; var lvl: TTR1level; aforced: Boolean = false): Boolean; overload;
+var
+  v : LongWord;
+  c : LongWord;
+
+  ofs : int64;
+  k   : integer;
+  cc  : integer;
+
+begin
+
+  //c:=s.ReadDword;
+  //DebugData('num?: ', c, c*4, s.Position);
+end;
+
+function ReadDemoTOM(const fn: string; var lvl: TTR1level; aforced: Boolean = false): Boolean; overload;
 var
   fs : TFileStream;
 begin

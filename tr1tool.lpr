@@ -5,6 +5,39 @@ program tr1tool;
 uses
   SysUtils, Classes, tr_types, tr1_utils;
 
+procedure SeparateLvl(const lvl: TTR1Level);
+var
+  fs : TFileStream;
+begin
+  fs:=TFileStream.Create('meshes.out', fmCreate);
+  try
+    fs.Write(lvl.MeshData[0], lvl.MeshDataCount*2);
+  finally
+    fs.Free;
+  end;
+
+  fs:=TFileStream.Create('meshesptr.out', fmCreate);
+  try
+    fs.Write(lvl.MeshPtr[0], lvl.MeshPtrCount*sizeof(lvl.MeshPtr[0]));
+  finally
+    fs.Free;
+  end;
+
+  fs:=TFileStream.Create('meshestree.out', fmCreate);
+  try
+    fs.Write(lvl.MeshTree[0], lvl.MeshTreeCount*sizeof(lvl.MeshTree[0]));
+  finally
+    fs.Free;
+  end;
+
+  fs:=TFileStream.Create('models.out', fmCreate);
+  try
+    fs.Write(lvl.Model[0], lvl.ModelCount*sizeof(tr1_model));
+  finally
+    fs.Free;
+  end;
+end;
+
 procedure ReadStats(const fn: string);
 var
   lvl: TTR1Level;
@@ -14,6 +47,7 @@ begin
     Exit;
   end;
 
+  SeparateLvl(lvl);
 end;
 
 procedure ReadWadStats(const fn: string);
@@ -21,6 +55,7 @@ var
   lvl: TTR1Level;
 begin
   ReadDemoWAD1(fn, lvl);
+  DumpModels(lvl.Model, lvl.ModelCount);
 end;
 
 
