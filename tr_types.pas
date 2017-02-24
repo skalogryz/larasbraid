@@ -1182,6 +1182,10 @@ type
                                // the mesh must be made stand-alone
                                // i.e. by calling TR1MakeMeshStandAlone
 
+    _waddata1  : array of byte;
+    _waddata2  : array of byte;
+    _waddata3  : array of byte;
+    _waddata4  : array of byte;
   end;
   ptr1_mesh = ^tr1_mesh;
 
@@ -1190,6 +1194,7 @@ const
   TR1_OBJID_BRAID = 189;
 
 function TR1SetMeshFromData(const data: array of byte; offset: Integer; var m: tr1_mesh): Integer;
+function TR1WadSetMeshFromData(const data: array of byte; offset: Integer; var m: tr1_mesh): Integer;
 // copies all the data to the __selfdata
 // if __selfdata is not empty, then does nothing
 procedure TR1MakeMeshStandAlone(var m: tr1_mesh);
@@ -1222,6 +1227,7 @@ begin
   n:=pint16(@data[i])^;
   inc(i, sizeof(int16));
   m.normals:=@data[i];
+
   m.lights:=@data[i];
   if n>0 then begin
     m.num_normals:=n;
@@ -1254,6 +1260,163 @@ begin
   m.coloured_triangles:=@data[i];
   inc(i, m.num_coloured_triangles*sizeof(tr1_face3));
 
+  Result:=i-offset;
+end;
+
+function TR1WadSetMeshFromData(const data: array of byte; offset: Integer; var m: tr1_mesh): Integer;
+var
+  i   : integer;
+  n   : integer;
+
+  j   : integer;
+  fl  : byte;
+  cnt : integer;
+
+  tRT : integer;
+  tTG : integer;
+  cRT : integer;
+  cTG : integer;
+begin
+  SetLength(m._selfdata,0);
+
+  i:=offset;
+  m.centre:=ptr1_vertex(@data[i])^;
+  inc(i, sizeof(tr1_vertex));
+
+  m.collision_size:=pint32(@data[i])^;
+  inc(i, sizeof(int32));
+
+  //writelN('num of vtc: ', i,' offset = ', offset);
+  m.num_vertices:=pint16(@data[i])^;
+  inc(i, sizeof(int16));
+  //writelN('vtc = ', m.num_vertices);
+
+  m.vertices:=@data[i]; // do not copy... now
+  inc(i, m.num_vertices*sizeof(tr1_vertex));
+
+  n:=pint16(@data[i])^;
+  //writelN('nrm = ', n,' at ', i);
+  inc(i, sizeof(int16));
+  m.normals:=@data[i];
+
+  m.lights:=@data[i];
+  if n>0 then begin
+    m.num_normals:=n;
+    m.num_lights:=0; // no lights, only normals
+    inc(i, n*sizeof(tr1_vertex));
+  end else begin
+    n:=-n;
+    m.num_normals:=0;
+    m.num_lights:=n;
+    inc(i, n*sizeof(int16));
+  end;
+
+  n:= pint16(@data[i])^;
+
+  SetLength(m._waddata1, n * sizeof(tr1_face4));
+  SetLength(m._waddata2, n * sizeof(tr1_face3)); // textured triangles
+  SetLength(m._waddata3, n * sizeof(tr1_face4));
+  SetLength(m._waddata4, n * sizeof(tr1_face3)); // color triangles
+
+  //writeln('poliygons: ', n);
+  inc(i, 2);
+
+  tRT := 0;
+  tTG := 0;
+  cRT := 0;
+  cTG := 0;
+
+  for j:=0 to n-1 do begin
+    //writeln('ofs = ', i);
+    fl:=pint16(@data[i])^;
+    inc(i, 2);
+
+    if fl and 1 > 0 then
+      cnt:=4
+    else
+      cnt:=3;
+
+    if fl and 8 > 0 then begin
+      // textured
+      if cnt = 3 then begin
+        Move( data[i], m._waddata2[tTG*sizeof(tr1_face3)], sizeof(tr1_face3));
+        inc(tTG);
+        inc(i, sizeof(tr1_face3));
+      end else begin
+        Move( data[i], m._waddata1[tRT*sizeof(tr1_face4)], sizeof(tr1_face4));
+        inc(tRT);
+        inc(i, sizeof(tr1_face4));
+      end;
+      //i:=i+sizeof(tr1_face3)
+    end else begin
+      // colored
+      if cnt = 3 then begin
+        Move( data[i], m._waddata4[cTG*sizeof(tr1_face3)], sizeof(tr1_face3));
+        inc(cTG);
+        inc(i, sizeof(tr1_face3));
+      end else begin
+        Move( data[i], m._waddata3[cRT*sizeof(tr1_face4)], sizeof(tr1_face4));
+        inc(cRT);
+        inc(i, sizeof(tr1_face4));
+      end;
+    end;
+    //cnt:=3+(fl and 1); // if flag is has bit 0 set, then it's a quad, other whise it's a triangle
+    //if fl and 1=0 then cnt:=3;
+    //else cnt:=4;
+  end;
+
+  m.num_textured_rectangles:=tRT;
+  m.textured_rectangles:=@m._waddata1[0];
+  m.num_textured_triangles:=tTG;
+  m.textured_triangles:=@m._waddata2[0];
+
+  m.num_coloured_rectangles:=cRT;
+  m.coloured_rectangles:=@m._waddata3[0];
+  m.num_coloured_triangles:=cTG;
+  m.coloured_triangles:=@m._waddata4[0];
+
+  //writelN('result: ', tRT, ' ',tTG,' ',cRT,' ',cTG);
+{
+  m.num_textured_rectangles:=pint16(@data[i])^;
+  writeln('tRCT: ' , m.num_textured_rectangles,' i=',i);
+  inc(i, sizeof(int16));
+  m.textured_rectangles:=@data[i];
+  inc(i, m.num_textured_rectangles*sizeof(tr1_face4));
+
+  m.num_textured_triangles:=pint16(@data[i])^;
+  writeln('tTRG: ' , m.num_textured_triangles,' i=',i);
+  inc(i, sizeof(int16));
+  m.textured_triangles:=@data[i];
+  inc(i, m.num_textured_triangles*sizeof(tr1_face3));
+
+  m.num_coloured_rectangles:=pint16(@data[i])^;
+  writeln('cRCT: ' , m.num_coloured_rectangles,' i=',i);
+  inc(i, sizeof(int16));
+  m.coloured_rectangles:=@data[i];
+  inc(i, m.num_coloured_rectangles*sizeof(tr1_face4));
+
+  m.num_coloured_triangles:=pint16(@data[i])^;
+  writeln('cTRG: ' , m.num_coloured_triangles,' i=',i,' ',m.num_coloured_triangles*sizeof(tr1_face3));
+  inc(i, sizeof(int16));
+  m.coloured_triangles:=@data[i];
+  inc(i, m.num_coloured_triangles*sizeof(tr1_face3));
+
+  writeln('i = ', i,' offset = ', offset);
+  }
+ {
+ // textured rectangles only
+  m.num_textured_rectangles:=pint16(@data[i])^;
+  writeln('tRCT: ' , m.num_textured_rectangles,' i=',i);
+  inc(i, sizeof(int16));
+  m.textured_rectangles:=@data[i];
+  inc(i, m.num_textured_rectangles*sizeof(tr1_face4));
+
+  m.num_textured_triangles:=0;
+  m.num_coloured_rectangles:=0;
+  m.num_coloured_triangles:=0;
+
+  writeln('i = ', i,' offset = ', offset);
+}
   Result:=i-offset;
 end;
 

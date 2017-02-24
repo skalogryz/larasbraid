@@ -159,7 +159,9 @@ var
 
 function ModelToWavefrontStr(const model: tr1_model;
   const ptrs: array of uint32;
-  const meshdata: array of byte): string;
+  const meshdata: array of byte;
+  const meshtree: array of tr1_meshtree_raw;
+  isWad: Boolean): string;
 
 implementation
 
@@ -1035,35 +1037,56 @@ end;
 
 function ModelToWavefrontStr(const model: tr1_model;
   const ptrs: array of uint32;
-  const meshdata: array of byte): string;
+  const meshdata: array of byte;
+  const meshtree: array of tr1_meshtree_raw;
+  isWad: Boolean): string;
 var
   i   : integer;
   j   : integer;
   ofs : Integer;
   m   : tr1_mesh;
   x,y,z : single;
-  s : string;
+  s    : string;
 
+  sz   : integer;
   vidx : integer;
+  px,py,pz: single;
+  dx,dy,dz: single;
+  ti : integer;
 begin
   s:='';
   vidx:=1;
+  ofs:=model.starting_mesh;
+  px:=0;
+  py:=0;
+  pz:=0;
   for i:=0 to model.num_meshes-1 do begin
-    ofs := ptrs[ i + model.starting_mesh ];
-    TR1SetMeshFromData( meshdata, ofs, m );
+    if isWad then
+      TR1WadSetMeshFromData(meshdata, Ptrs[ofs], m)
+    else
+      TR1SetMeshFromData( meshdata, ptrs[ ofs ], m );
 
+   writelN('i: ',i,' cnt: ',m.centre.x/255:0:2,' ',m.centre.y/255:0:2,' ',m.centre.z/255:0:2);
+
+   dx:=px+m.centre.x/255;
+   dy:=py+m.centre.y/255;
+   dz:=pz+m.centre.z/255;
+
+   {+m.centre.x/255}
+   {+m.centre.y/255}
+   {+m.centre.z/255}
     s:=s+Format('o mesh_%d',[i])+LineEnding;
     for j:=0 to m.num_vertices-1 do begin
-      x:=m.vertices^[j].x/255;
-      y:=m.vertices^[j].y/255;
-      z:=m.vertices^[j].z/255;
+      x:=m.vertices^[j].x/255{+m.centre.x/255}+dx;
+      y:=m.vertices^[j].y/255{+m.centre.y/255}+dy;
+      z:=m.vertices^[j].z/255{+m.centre.z/255}+dz;
       s:=s+Format('v %.4f %.4f %.4f',[x,y,z])+LineEnding;
     end;
 
     for j:=0 to m.num_normals-1 do begin
-      x:=m.normals[j].x/255;
-      y:=m.normals[j].y/255;
-      z:=m.normals[j].z/255;
+      x:=m.normals^[j].x/255;
+      y:=m.normals^[j].y/255;
+      z:=m.normals^[j].z/255;
       s:=s+Format('vn %.4f %.4f %.4f',[x,y,z])+LineEnding;
     end;
 
@@ -1117,6 +1140,7 @@ begin
       end;
     end;
 
+    s:=s+LineEnding+LineEnding;
     inc(vidx, m.num_vertices);
     inc(ofs);
   end;
@@ -1124,4 +1148,5 @@ begin
 end;
 
 end.
+
 

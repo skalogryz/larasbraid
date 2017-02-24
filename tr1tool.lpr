@@ -38,14 +38,14 @@ begin
   end;
 end;
 
-procedure DumpModelsToObj(const lvl: TTR1Level);
+procedure DumpModelsToObj(const lvl: TTR1Level; aisWad: Boolean);
 var
   s  : string;
   fs : TfileStream;
   i  : Integer;
 begin
   for i:=0 to lvl.ModelCount-1 do begin
-    s:=ModelToWavefrontStr( lvl.Model[i], lvl.MeshPtr, lvl.MeshData );
+    s:=ModelToWavefrontStr( lvl.Model[i], lvl.MeshPtr, lvl.MeshData, lvl.MeshTree, aisWad);
     s:='# object id '+IntToStr(lvl.Model[i].object_id)+LineEnding
        +LineEnding
        +s;
@@ -69,16 +69,26 @@ begin
   end;
 
   SeparateLvl(lvl);
-  DumpModelsToObj(lvl);
+  DumpModelsToObj(lvl, false);
 end;
 
 procedure ReadWadStats(const fn: string);
 var
   lvl: TTR1Level;
+  fs : TFileStream;
 begin
   ReadDemoWAD1(fn, lvl);
+
+  fs:=TFileStream.create('rawmodels.out', fmCreate);
+  try
+    fs.Write(lvl.MeshData[0], lvl.MeshDataCount*2);
+  finally
+    fs.Free;
+  end;
+  SeparateLvl(lvl);
+
   DumpModels(lvl.Model, lvl.ModelCount);
-  DumpModelsToObj(lvl);
+  DumpModelsToObj(lvl, true);
 end;
 
 
