@@ -161,7 +161,8 @@ function ModelToWavefrontStr(const model: tr1_model;
   const ptrs: array of uint32;
   const meshdata: array of byte;
   const meshtree: array of tr1_meshtree_raw;
-  isWad: Boolean): string;
+  isWad: Boolean;
+  scale: double = 1/255): string;
 
 implementation
 
@@ -1035,11 +1036,84 @@ begin
   end;
 end;
 
+type
+  TBasis = record
+    x,y,z: single;
+  end;
+
+  TBasisStack = record
+    count : integer;
+    items : array of TBasis;
+  end;
+
+procedure BasisInit(out st: TBasisStack);
+begin
+  st.Count:=0;
+  SetLength(st.items,16);
+end;
+
+procedure BasisPush(var b: TBasisStack; x,y,z: single);
+begin
+  if length(b.items)=b.count then begin
+    if b.count=0 then SetLength(b.items, 16)
+    else Setlength(b.items, b.count*2);
+  end;
+  b.items[b.count].x:=x;
+  b.items[b.count].y:=y;
+  b.items[b.count].z:=z;
+  inc(b.count);
+end;
+
+function BasisPeek(const b: TBasisStack; out x,y,z: single): Boolean; overload;
+var
+ i : integer;
+begin
+  Result:=b.count>0;
+  if Result then begin
+    i:=b.count-1;
+    x:=b.items[i].x;
+    y:=b.items[i].y;
+    z:=b.items[i].z;
+  end else begin
+    x:=0;
+    y:=0;
+    z:=0;
+  end;
+end;
+
+function BasisPop(var b: TBasisStack; out x,y,z: single): Boolean;   overload;
+begin
+  Result:=b.count>0;
+  if Result then begin
+    BasisPeek(b, x,y,z);
+    dec(b.count);
+  end else begin
+    x:=0;y:=0;z:=0;
+  end;
+
+{  if length(b.items)=b.count then begin
+    if b.count=0 then SetLength(b.items, 16)
+    else Setlength(b.items, b.count*2);
+  end;
+  b.items[b.count].x:=x;
+  b.items[b.count].y:=y;
+  b.items[b.count].z:=z;}
+
+end;
+
+function BasisPop(var b: TBasisStack): Boolean; overload;
+var
+  t1,t2,t3: single;
+begin
+  Result:=BasisPop(b,t1,t2,t3);
+end;
+
 function ModelToWavefrontStr(const model: tr1_model;
   const ptrs: array of uint32;
   const meshdata: array of byte;
   const meshtree: array of tr1_meshtree_raw;
-  isWad: Boolean): string;
+  isWad: Boolean;
+  scale: double): string;
 var
   i   : integer;
   j   : integer;
@@ -1053,6 +1127,10 @@ var
   px,py,pz: single;
   dx,dy,dz: single;
   ti : integer;
+  tt : integer;
+  st : TBasisStack;
+  pm : ptr1_meshtree;
+
 begin
   s:='';
   vidx:=1;
@@ -1060,33 +1138,53 @@ begin
   px:=0;
   py:=0;
   pz:=0;
+
+  BasisInit(st);
+
+  ti:=model.mesh_tree_index;
   for i:=0 to model.num_meshes-1 do begin
     if isWad then
       TR1WadSetMeshFromData(meshdata, Ptrs[ofs], m)
     else
       TR1SetMeshFromData( meshdata, ptrs[ ofs ], m );
 
-   writelN('i: ',i,' cnt: ',m.centre.x/255:0:2,' ',m.centre.y/255:0:2,' ',m.centre.z/255:0:2);
+    writelN('i: ',i,' cnt: ',m.centre.x{/255:0:2},' ',m.centre.y{/255:0:2},' ',m.centre.z{/255:0:2});
 
-   dx:=px+m.centre.x/255;
-   dy:=py+m.centre.y/255;
-   dz:=pz+m.centre.z/255;
+    if i>0 then begin
+      tt:=model.mesh_tree_index+(i-1)*4;
+      pm:=ptr1_meshtree(@meshtree[tt]);
+
+      if (pm.flags and 1>0) then begin
+        BasisPop(st);
+        BasisPeek(st, px,py,pz);
+      end;
+
+      if (pm.flags and 2>0) then BasisPush(st, px,py,pz);
+
+      px:=px+pm^.x;
+      py:=py+pm^.y;
+      pz:=pz+pm^.z;
+    end;
+
+    dx:=px{+m.centre.x}{/255};
+    dy:=py{+m.centre.y}{/255};
+    dz:=pz{+m.centre.z}{/255};
 
    {+m.centre.x/255}
    {+m.centre.y/255}
    {+m.centre.z/255}
     s:=s+Format('o mesh_%d',[i])+LineEnding;
     for j:=0 to m.num_vertices-1 do begin
-      x:=m.vertices^[j].x/255{+m.centre.x/255}+dx;
-      y:=m.vertices^[j].y/255{+m.centre.y/255}+dy;
-      z:=m.vertices^[j].z/255{+m.centre.z/255}+dz;
+      x:=(m.vertices^[j].x+dx)*scale;
+      y:=(m.vertices^[j].y+dy)*scale;
+      z:=(m.vertices^[j].z+dz)*scale;
       s:=s+Format('v %.4f %.4f %.4f',[x,y,z])+LineEnding;
     end;
 
     for j:=0 to m.num_normals-1 do begin
-      x:=m.normals^[j].x/255;
-      y:=m.normals^[j].y/255;
-      z:=m.normals^[j].z/255;
+      x:=m.normals^[j].x;
+      y:=m.normals^[j].y;
+      z:=m.normals^[j].z;
       s:=s+Format('vn %.4f %.4f %.4f',[x,y,z])+LineEnding;
     end;
 
