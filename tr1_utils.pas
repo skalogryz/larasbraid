@@ -4,7 +4,7 @@ unit tr1_utils;
 
 interface
 
-uses Classes, SysUtils, tr_types;
+uses Classes, SysUtils, tr_types, anysortunit;
 
 type
   TTR1VertexData = record
@@ -156,6 +156,10 @@ function ReadDemoTOM(const fn: string; var lvl: TTR1level; aforced: Boolean = fa
 
 var
   TR1Debug : Boolean = false;
+
+function ModelToWavefrontStr(const model: tr1_model;
+  const ptrs: array of uint32;
+  const meshdata: array of byte): string;
 
 implementation
 
@@ -790,6 +794,26 @@ begin
   writeln(prefix,' ',num:8,' bytes=', bytesize:9,' at ', IntToHex(ofs, 8));
 end;
 
+type
+  TTextureInfo = packed record
+    offset : LongWord;
+    flag1  : Word;
+    flag2  : Word;
+  end;
+  PTextureInfo = ^TTextureInfo;
+  TTextureInfoArray = array [Word] of TTextureInfo;
+  PTextureInfoArray = ^TTextureInfoArray;
+
+function cmpTexture(elem1, elem2: PTextureInfo): Integer;
+begin
+  if elem1^.offset<elem2^.offset then
+    Result:=-1
+  else if elem1^.offset=elem2^.offset then begin
+    Result:=0;
+  end else
+    Result:=1;
+end;
+
 function ReadDemoWAD1(s: TStream; var lvl: TTR1level; aforced: Boolean): Boolean;
 var
   v : LongWord;
@@ -798,13 +822,25 @@ var
   ofs : int64;
   k   : integer;
   cc  : integer;
+  tt  : array of TTextureInfo;
+  i   : integer;
 begin
   v:=s.ReadDWord;
   writeln('version: ', v, ' ', IntTOHex(v,8));
   Result:=true;
   c:=s.ReadDWord;
+
   DebugData('num1: ', c, c*8, s.Position);
-  s.Position:=s.Position+c*8;
+
+  SetLength(tt, c);
+  s.Read(tt[0], length(tt)*sizeof(TTextureInfo));
+
+  AnySort(tt[0], c, sizeof(TTextureInfo), @cmpTexture);
+
+  for i:=0 to length(tt)-1 do
+    writeln('  ',i,' ',tt[i].offset,' ',tt[i].flag1,' ',tt[i].flag2,' ', int16(tt[i].flag1),' ',int16(tt[i].flag2));
+
+  //s.Position:=s.Position+c*8;
 
   c:=s.ReadDWord; // mesh data? textures?
   DebugData('num2: ', c, c, s.Position);
@@ -996,6 +1032,96 @@ begin
   finally
     fs.Free;
   end;
+end;
+
+function ModelToWavefrontStr(const model: tr1_model;
+  const ptrs: array of uint32;
+  const meshdata: array of byte): string;
+var
+  i   : integer;
+  j   : integer;
+  ofs : Integer;
+  m   : tr1_mesh;
+  x,y,z : single;
+  s : string;
+
+  vidx : integer;
+begin
+  s:='';
+  vidx:=1;
+  for i:=0 to model.num_meshes-1 do begin
+    ofs := ptrs[ i + model.starting_mesh ];
+    TR1SetMeshFromData( meshdata, ofs, m );
+
+    s:=s+Format('o mesh_%d',[i])+LineEnding;
+    for j:=0 to m.num_vertices-1 do begin
+      x:=m.vertices^[j].x/255;
+      y:=m.vertices^[j].y/255;
+      z:=m.vertices^[j].z/255;
+      s:=s+Format('v %.4f %.4f %.4f',[x,y,z])+LineEnding;
+    end;
+
+    for j:=0 to m.num_normals-1 do begin
+      x:=m.normals[j].x/255;
+      y:=m.normals[j].y/255;
+      z:=m.normals[j].z/255;
+      s:=s+Format('vn %.4f %.4f %.4f',[x,y,z])+LineEnding;
+    end;
+
+    if m.num_textured_rectangles > 0 then begin
+      s:=s+'# textured rectangles'+LineEnding;
+      for j:=0 to m.num_textured_rectangles-1 do begin
+        s:=s+Format('f %0:d//%0:d %1:d//%1:d %2:d//%2:d %3:d//%3:d'
+          ,[ m.textured_rectangles^[j].Verticies[0]+vidx
+            ,m.textured_rectangles^[j].Verticies[1]+vidx
+            ,m.textured_rectangles^[j].Verticies[2]+vidx
+            ,m.textured_rectangles^[j].Verticies[3]+vidx
+           ])
+          +LineEnding;
+      end;
+    end;
+
+    if m.num_textured_triangles>0 then begin
+      s:=s+'# textured triangles'+LineEnding;
+      for j:=0 to m.num_textured_triangles-1 do begin
+        s:=s+Format('f %0:d//%0:d %1:d//%1:d %2:d//%2:d'
+          ,[ m.textured_triangles^[j].Verticies[0]+vidx
+            ,m.textured_triangles^[j].Verticies[1]+vidx
+            ,m.textured_triangles^[j].Verticies[2]+vidx
+           ])
+          +LineEnding;
+      end;
+    end;
+
+    if m.num_coloured_rectangles>0 then begin
+      s:=s+'# colored rectangles'+LineEnding;
+      for j:=0 to m.num_coloured_rectangles-1 do begin
+        s:=s+Format('f %0:d//%0:d %1:d//%1:d %2:d//%2:d %3:d//%3:d'
+          ,[ m.coloured_rectangles^[j].Verticies[0]+vidx
+            ,m.coloured_rectangles^[j].Verticies[1]+vidx
+            ,m.coloured_rectangles^[j].Verticies[2]+vidx
+            ,m.coloured_rectangles^[j].Verticies[3]+vidx
+           ])
+          +LineEnding;
+      end;
+    end;
+
+    if m.num_coloured_triangles>0 then begin
+      s:=s+'# colored triangles'+LineEnding;
+      for j:=0 to m.num_coloured_triangles-1 do begin
+        s:=s+Format('f %0:d//%0:d %1:d//%1:d %2:d//%2:d'
+          ,[ m.coloured_triangles^[j].Verticies[0]+vidx
+            ,m.coloured_triangles^[j].Verticies[1]+vidx
+            ,m.coloured_triangles^[j].Verticies[2]+vidx
+           ])
+          +LineEnding;
+      end;
+    end;
+
+    inc(vidx, m.num_vertices);
+    inc(ofs);
+  end;
+  Result:=s;
 end;
 
 end.
