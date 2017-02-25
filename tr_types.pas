@@ -58,10 +58,14 @@ type
 
   {/  RGBA colour using uint8. For palette etc. }
   tr_colour4 = record
+  case byte of
+  0:(
     r : uint8;  { the red component. }
     g : uint8;  { the green component. }
     b : uint8;  { the blue component. }
     a : uint8;  { the alpha component. }
+    );
+  1:(clr: tr_colour3; alpha: uint8 )
   end;
   tr2_colour   = tr_colour4;
   tr2_colour_s = tr2_colour;
@@ -161,7 +165,9 @@ type
     * Each pixel is an index into the colour palette.
      }
   tr_textile8 = record
-    pixels : array[0..255] of array[0..255] of uint8;
+  case byte of
+    0: (pixels : array[0..255] of array[0..255] of uint8);
+    0: (raw : array[0..256*256-1] of uint8);
   end;
   tr_textile8_s = tr_textile8;
   tr_textile8_t = tr_textile8;
@@ -837,16 +843,16 @@ type
     { Bit 4: UNKNOWN, bit 5: Randomize pitch, bit 6: randomize volume }
     { All other bits in flags_2 are unused. }
 
-      tr_sound_details_s = record
-          sample : uint16;
-          volume : uint16;
-          sound_range : uint16;
-          chance : uint16;
-          pitch : int16;
-          num_samples_and_flags_1 : uint8;
-          flags_2 : uint8;
-        end;
-      tr_sound_details_t = tr_sound_details_s;
+  tr_sound_details_s = record
+    sample                  : uint16;
+    volume                  : uint16;
+    sound_range             : uint16;
+    chance                  : uint16;
+    pitch                   : int16;
+    num_samples_and_flags_1 : uint8;
+    flags_2                 : uint8;
+  end;
+  tr_sound_details_t = tr_sound_details_s;
     {*  Object Texture Vertex.
       *
       * It specifies a vertex location in textile coordinates.
@@ -979,20 +985,21 @@ type
   tr_cinematic_frame_t = tr_cinematic_frame_s;
   tr1_cinematic_frame = tr_cinematic_frame;
 
-    {*  Lightmap.
-       }
+  {*  Lightmap. }
+  tr_lightmap_s = record
+    map : array[0..(32*256)-1] of uint8;
+  end;
+  tr_lightmap_t = tr_lightmap_s;
 
-      tr_lightmap_s = record
-          map : array[0..(32*256)-1] of uint8;
-        end;
-      tr_lightmap_t = tr_lightmap_s;
-    {*  Palette.
-       }
+  {*  Palette.   }
+  tr2_palette = record
+    colour : array[0..255] of tr2_colour_t;
+  end;
+  tr2_palette_s = tr2_palette;
+  tr2_palette_t = tr2_palette_s;
 
-      tr2_palette_s = record
-          colour : array[0..255] of tr2_colour_t;
-        end;
-      tr2_palette_t = tr2_palette_s;
+  tr1_palette = array [0..255] of tr_colour3;
+  ptr1_palette = ^tr1_palette;
 
   tr1_vertex_room = record
     vertex    : tr1_vertex;
@@ -1108,7 +1115,7 @@ type
                          // the brighter the colour, the more opaque it is. The intensity is probably calculated
                          // as the maximum of the individual color values.
     Tile      : uint16 ; // index into textile list
-    Vertices  : array [0..3] of tr2_object_texture_vert; // the four corners of the texture
+    Vertices  : array [0..3] of tr1_object_texture_vert; // the four corners of the texture
   end;
   tr2_object_texture = tr1_object_texture;
 
@@ -1193,8 +1200,13 @@ type
 const
   TR1_OBJID_BRAID = 189;
 
+// Release version or September 1996 .phd file mesh structure
 function TR1SetMeshFromData(const data: array of byte; offset: Integer; var m: tr1_mesh): Integer;
-function TR1WadSetMeshFromData(const data: array of byte; offset: Integer; var m: tr1_mesh): Integer;
+// July 1996 wad files (version $15)
+function TR1JulWadSetMeshFromData(const data: array of byte; offset: Integer; var m: tr1_mesh): Integer;
+// May 1996 wad files (version $0B)
+function TR1MayWadSetMeshFromData(const data: array of byte; offset: Integer; var m: tr1_mesh): Integer;
+
 // copies all the data to the __selfdata
 // if __selfdata is not empty, then does nothing
 procedure TR1MakeMeshStandAlone(var m: tr1_mesh);
@@ -1202,7 +1214,16 @@ procedure TR1MakeMeshStandAlone(var m: tr1_mesh);
 function CalcMeshSize(const m: tr1_mesh): integer;
 function WriteMeshToData(const m: tr1_mesh; var data: array of byte; offset: Integer): Integer;
 
+procedure NormalToSingle(const v: tr1_vertex; var x,y,z: single);
+
 implementation
+
+procedure NormalToSingle(const v: tr1_vertex; var x,y,z: single);
+begin
+  x:=v.x;
+  y:=-v.y;
+  z:=-v.z;
+end;
 
 function TR1SetMeshFromData(const data: array of byte; offset: Integer; var m: tr1_mesh): Integer;
 var
@@ -1263,7 +1284,7 @@ begin
   Result:=i-offset;
 end;
 
-function TR1WadSetMeshFromData(const data: array of byte; offset: Integer; var m: tr1_mesh): Integer;
+function TR1JulWadSetMeshFromData(const data: array of byte; offset: Integer; var m: tr1_mesh): Integer;
 var
   i   : integer;
   n   : integer;
@@ -1375,48 +1396,6 @@ begin
   m.num_coloured_triangles:=cTG;
   m.coloured_triangles:=@m._waddata4[0];
 
-  //writelN('result: ', tRT, ' ',tTG,' ',cRT,' ',cTG);
-{
-  m.num_textured_rectangles:=pint16(@data[i])^;
-  writeln('tRCT: ' , m.num_textured_rectangles,' i=',i);
-  inc(i, sizeof(int16));
-  m.textured_rectangles:=@data[i];
-  inc(i, m.num_textured_rectangles*sizeof(tr1_face4));
-
-  m.num_textured_triangles:=pint16(@data[i])^;
-  writeln('tTRG: ' , m.num_textured_triangles,' i=',i);
-  inc(i, sizeof(int16));
-  m.textured_triangles:=@data[i];
-  inc(i, m.num_textured_triangles*sizeof(tr1_face3));
-
-  m.num_coloured_rectangles:=pint16(@data[i])^;
-  writeln('cRCT: ' , m.num_coloured_rectangles,' i=',i);
-  inc(i, sizeof(int16));
-  m.coloured_rectangles:=@data[i];
-  inc(i, m.num_coloured_rectangles*sizeof(tr1_face4));
-
-  m.num_coloured_triangles:=pint16(@data[i])^;
-  writeln('cTRG: ' , m.num_coloured_triangles,' i=',i,' ',m.num_coloured_triangles*sizeof(tr1_face3));
-  inc(i, sizeof(int16));
-  m.coloured_triangles:=@data[i];
-  inc(i, m.num_coloured_triangles*sizeof(tr1_face3));
-
-  writeln('i = ', i,' offset = ', offset);
-  }
- {
- // textured rectangles only
-  m.num_textured_rectangles:=pint16(@data[i])^;
-  writeln('tRCT: ' , m.num_textured_rectangles,' i=',i);
-  inc(i, sizeof(int16));
-  m.textured_rectangles:=@data[i];
-  inc(i, m.num_textured_rectangles*sizeof(tr1_face4));
-
-  m.num_textured_triangles:=0;
-  m.num_coloured_rectangles:=0;
-  m.num_coloured_triangles:=0;
-
-  writeln('i = ', i,' offset = ', offset);
-}
   Result:=i-offset;
 end;
 
@@ -1528,6 +1507,126 @@ begin
     Move(m.coloured_triangles[0], data[i], sz);
     inc(i, sz);
   end;
+
+  Result:=i-offset;
+end;
+
+function TR1MayWadSetMeshFromData(const data: array of byte; offset: Integer; var m: tr1_mesh): Integer;
+var
+  i   : integer;
+  n   : integer;
+
+  j   : integer;
+  fl  : byte;
+  cnt : integer;
+
+  tRT : integer;
+  tTG : integer;
+  cRT : integer;
+  cTG : integer;
+begin
+  SetLength(m._selfdata,0);
+
+  i:=offset;
+  inc(i, 2); // skipping unknown value - collision size?
+
+  FillChar(m.centre, sizeof(m.centre), 0);
+  //m.centre:=ptr1_vertex(@data[i])^;
+  //inc(i, sizeof(tr1_vertex));
+
+  //m.collision_size:=pint32(@data[i])^;
+  //inc(i, sizeof(int32));
+  m.collision_size:=0;
+
+  //writelN('num of vtc: ', i,' offset = ', offset);
+  m.num_vertices:=pint16(@data[i])^;
+  inc(i, sizeof(int16));
+  //writelN('vtc = ', m.num_vertices);
+
+  m.vertices:=@data[i]; // do not copy... now
+  inc(i, m.num_vertices*sizeof(tr1_vertex));
+
+
+  n:=pint16(@data[i])^;
+  //writelN('nrm = ', n,' at ', i);
+  inc(i, sizeof(int16));
+  m.normals:=@data[i];
+
+  m.lights:=@data[i];
+  if n>0 then begin
+    m.num_normals:=n;
+    m.num_lights:=0; // no lights, only normals
+    inc(i, n*sizeof(tr1_vertex));
+  end else begin
+    n:=-n;
+    m.num_normals:=0;
+    m.num_lights:=n;
+    inc(i, n*sizeof(int16));
+  end;
+
+  n:= pint16(@data[i])^;
+
+  SetLength(m._waddata1, n * sizeof(tr1_face4));
+  SetLength(m._waddata2, n * sizeof(tr1_face3)); // textured triangles
+  SetLength(m._waddata3, n * sizeof(tr1_face4));
+  SetLength(m._waddata4, n * sizeof(tr1_face3)); // color triangles
+
+  //writeln('poliygons: ', n);
+  inc(i, 2);
+
+  tRT := 0;
+  tTG := 0;
+  cRT := 0;
+  cTG := 0;
+
+  for j:=0 to n-1 do begin
+    //writeln('ofs = ', i);
+    fl:=pint16(@data[i])^;
+    inc(i, 2);
+
+    if fl and 1 > 0 then
+      cnt:=4
+    else
+      cnt:=3;
+
+    if fl and 8 > 0 then begin
+      // textured
+      if cnt = 3 then begin
+        Move( data[i], m._waddata2[tTG*sizeof(tr1_face3)], sizeof(tr1_face3));
+        inc(tTG);
+        inc(i, sizeof(tr1_face3));
+      end else begin
+        Move( data[i], m._waddata1[tRT*sizeof(tr1_face4)], sizeof(tr1_face4));
+        inc(tRT);
+        inc(i, sizeof(tr1_face4));
+      end;
+      //i:=i+sizeof(tr1_face3)
+    end else begin
+      // colored
+      if cnt = 3 then begin
+        Move( data[i], m._waddata4[cTG*sizeof(tr1_face3)], sizeof(tr1_face3));
+        inc(cTG);
+        inc(i, sizeof(tr1_face3));
+      end else begin
+        Move( data[i], m._waddata3[cRT*sizeof(tr1_face4)], sizeof(tr1_face4));
+        inc(cRT);
+        inc(i, sizeof(tr1_face4));
+      end;
+    end;
+    //cnt:=3+(fl and 1); // if flag is has bit 0 set, then it's a quad, other whise it's a triangle
+    //if fl and 1=0 then cnt:=3;
+    //else cnt:=4;
+  end;
+
+  m.num_textured_rectangles:=tRT;
+  m.textured_rectangles:=@m._waddata1[0];
+  m.num_textured_triangles:=tTG;
+  m.textured_triangles:=@m._waddata2[0];
+
+  m.num_coloured_rectangles:=cRT;
+  m.coloured_rectangles:=@m._waddata3[0];
+  m.num_coloured_triangles:=cTG;
+  m.coloured_triangles:=@m._waddata4[0];
 
   Result:=i-offset;
 end;

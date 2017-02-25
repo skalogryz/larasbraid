@@ -4,7 +4,7 @@ unit tr1_utils;
 
 interface
 
-uses Classes, SysUtils, tr_types, anysortunit;
+uses Classes, SysUtils, tr_types{, anysortunit};
 
 type
   TTR1VertexData = record
@@ -39,7 +39,7 @@ type
 
     TextTileCount  : LongWord;
     //PaletteOffset : QWord; // offset in the file
-    TextTile      : array of tr_textile8_t;
+    TextTile      : array of tr1_textile;
     unused        : LongWord;
 
     RoomCount  : LongWord;
@@ -133,7 +133,7 @@ function ReadLevel(const fn: string; var lvl: TTR1level; aforced: Boolean = fals
 function WriteLevel(s: TStream; const lvl: TTR1level): Boolean; overload;
 function WriteLevel(const fn: string; const lvl: TTR1level): Boolean; overload;
 
-procedure SaveDataToFile(const data; size: integer; const dst: string);
+procedure SaveDataToFile(const data; size: integer; const dstFileName: string);
 
 const
   BraidMesh : array [0..5] of array [0..139] of byte = (
@@ -154,17 +154,117 @@ function ReadDemoWAD1(const fn: string; var lvl: TTR1level; aforced: Boolean = f
 function ReadDemoTOM(s: TStream; var lvl: TTR1level; aforced: Boolean = false): Boolean; overload;
 function ReadDemoTOM(const fn: string; var lvl: TTR1level; aforced: Boolean = false): Boolean; overload;
 
+const
+  TR1_Palette : array [0..256*3-1] of byte = (
+ $02,$00,$00,$00,$00,$00,$06,$01,$00,$0C,$03,$01,$12,$07,$01,$18
+,$0A,$01,$16,$11,$00,$1A,$14,$03,$1C,$17,$0B,$22,$16,$0B,$28,$1A
+,$0E,$29,$1E,$12,$2C,$20,$14,$32,$24,$16,$37,$28,$19,$3A,$30,$1C
+,$3E,$34,$1E,$1D,$21,$1D,$16,$19,$16,$13,$14,$13,$10,$10,$10,$0C
+,$0C,$0C,$09,$09,$08,$0E,$0B,$05,$14,$0C,$05,$16,$10,$09,$15,$05
+,$08,$0F,$03,$06,$1F,$08,$08,$28,$0A,$07,$2E,$0B,$08,$23,$1C,$0E
+,$19,$1D,$19,$20,$24,$21,$24,$28,$24,$27,$2C,$28,$2C,$31,$2C,$33
+,$33,$33,$39,$39,$39,$3F,$3F,$26,$3F,$3B,$22,$17,$28,$27,$16,$2F
+,$31,$21,$33,$33,$2F,$37,$37,$2F,$2F,$23,$2B,$17,$22,$37,$3D,$33
+,$27,$25,$29,$0C,$0C,$0C,$0C,$05,$00,$10,$0A,$05,$14,$0F,$0A,$19
+,$14,$0F,$1D,$19,$14,$22,$1E,$19,$26,$23,$1D,$2A,$28,$22,$2F,$2D
+,$27,$33,$32,$2C,$38,$37,$31,$10,$07,$02,$13,$0A,$03,$17,$0D,$05
+,$1A,$10,$07,$1D,$14,$09,$21,$17,$0B,$24,$1A,$0D,$27,$1E,$0E,$01
+,$02,$00,$05,$05,$02,$08,$08,$04,$0C,$0B,$07,$10,$0E,$09,$13,$11
+,$0B,$17,$14,$0E,$3F,$3F,$00,$14,$00,$00,$1B,$02,$03,$22,$04,$06
+,$2A,$06,$08,$31,$08,$0B,$38,$0A,$0E,$0A,$09,$06,$10,$0F,$0A,$15
+,$15,$0D,$1B,$1B,$11,$21,$21,$14,$27,$27,$17,$2D,$2D,$1B,$02,$05
+,$0C,$04,$09,$0E,$05,$0C,$11,$06,$0F,$13,$08,$13,$16,$09,$16,$19
+,$0A,$19,$1B,$1D,$11,$08,$21,$16,$0D,$26,$1B,$12,$2A,$20,$17,$2F
+,$25,$1C,$33,$2A,$21,$38,$2F,$25,$3F,$00,$3F,$3F,$00,$3F,$3F,$00
+,$3F,$3F,$00,$3F,$3F,$00,$3F,$3F,$00,$3F,$3F,$00,$3F,$3F,$00,$3F
+,$3F,$00,$3F,$3F,$00,$3F,$3F,$00,$3F,$3F,$00,$3F,$3F,$00,$3F,$3F
+,$00,$3F,$3F,$3B,$17,$39,$32,$12,$34,$2A,$0F,$2F,$21,$0B,$29,$19
+,$07,$24,$10,$05,$1F,$08,$00,$28,$20,$11,$1C,$13,$0A,$1C,$1C,$0C
+,$00,$00,$00,$07,$05,$02,$0A,$08,$03,$0F,$0C,$05,$11,$0F,$07,$13
+,$11,$09,$15,$13,$0C,$18,$15,$0E,$1A,$18,$11,$1C,$1A,$13,$1F,$1D
+,$17,$23,$20,$1A,$26,$24,$1E,$29,$27,$22,$2D,$2A,$27,$30,$2D,$2B
+,$34,$31,$2F,$37,$34,$33,$3F,$3F,$3F,$3C,$3A,$3A,$35,$32,$31,$2E
+,$2A,$28,$2A,$25,$23,$26,$20,$1F,$22,$1C,$1B,$1F,$19,$18,$1E,$17
+,$17,$1A,$14,$13,$16,$11,$10,$11,$0E,$0E,$0D,$0B,$0A,$08,$07,$07
+,$25,$17,$0A,$2A,$1C,$0D,$2F,$21,$10,$30,$24,$14,$32,$27,$17,$33
+,$2A,$1B,$34,$2D,$21,$34,$30,$26,$35,$33,$2B,$3D,$39,$32,$13,$13
+,$14,$15,$15,$16,$17,$17,$18,$19,$19,$1A,$1B,$1B,$1C,$1D,$1D,$1E
+,$1F,$1F,$20,$21,$21,$22,$23,$23,$24,$25,$25,$26,$27,$27,$28,$29
+,$29,$29,$2B,$2B,$2B,$2D,$2D,$2E,$30,$30,$30,$32,$32,$33,$35,$35
+,$35,$38,$38,$38,$3A,$3A,$3A,$3D,$3D,$3D,$3F,$3F,$3F,$3F,$3F,$3F
+,$05,$06,$00,$05,$09,$00,$08,$0E,$00,$0F,$15,$00,$16,$1C,$00,$1D
+,$24,$00,$25,$2B,$00,$2B,$2F,$0D,$31,$33,$1A,$32,$37,$1E,$32,$3B
+,$23,$33,$3F,$27,$38,$38,$26,$33,$31,$21,$2E,$2B,$1C,$29,$25,$17
+,$25,$1F,$12,$22,$1C,$10,$20,$1A,$0E,$1E,$18,$0C,$1B,$15,$0A,$14
+,$10,$09,$11,$0D,$06,$12,$11,$10,$17,$15,$13,$1B,$19,$17,$20,$1E
+,$1B,$23,$20,$1D,$25,$23,$1F,$28,$26,$22,$2C,$2A,$26,$30,$2E,$2A
+,$06,$06,$05,$06,$09,$09,$09,$0D,$0D,$0C,$10,$10,$0F,$14,$14,$13
+,$17,$18,$19,$1D,$1D,$1E,$21,$22,$23,$26,$28,$28,$2A,$2D,$2F,$2F
+,$31,$08,$08,$06,$0A,$0A,$08,$0B,$0C,$09,$0D,$0D,$0A,$10,$0F,$0C
+,$12,$12,$0E,$15,$14,$10,$18,$17,$12,$1B,$19,$14,$1E,$1D,$17,$06
+,$08,$06,$08,$0B,$08,$0A,$0D,$0A,$0D,$0F,$0B,$10,$11,$0D,$12,$14
+,$0E,$15,$16,$0F,$19,$1A,$13,$1C,$1E,$16,$1F,$21,$19,$21,$23,$1B
+  );
+
 var
   TR1Debug : Boolean = false;
+
+  TR1DefPallette : ptr1_palette = @TR1_Palette[0];
 
 function ModelToWavefrontStr(const model: tr1_model;
   const ptrs: array of uint32;
   const meshdata: array of byte;
   const meshtree: array of tr1_meshtree_raw;
   isWad: Boolean;
+  version: Integer;
   scale: double = 1/255): string;
 
+procedure SaveTileToBmp32(const dst: string; const tl: tr_textile8; pal: ptr1_palette = nil);
+
+type
+  tr1_object_texture_wad = packed record // 8 bytes
+    x,y   : uint8;
+    Tile  : uint16; // index into textile list
+    unk1  : uint8;  // always $FF
+    w     : uint8;  // width  -1
+    unk2  : uint8;  // always $FF
+    h     : uint8;  // height - 1
+  end;
+
+ tr1_animation_wad = packed record    { 32 bytes TR1/2/3 40 bytes TR4 }
+    frame_offset        : uint32;  { byte offset into Frames[] (divide by 2 for Frames[i]) }
+    frame_rate          : uint8;   { Engine ticks per frame }
+    frame_size          : uint8;   { number of int16's in Frames[] used by this animation }
+    state_id            : uint16;
+    unk                 : array [0..1] of uint8;
+    frame_start         : uint16;  { first frame in this animation }
+    frame_end           : uint16;  { last frame in this animation (numframes = (End - Start) + 1) }
+    next_animation      : uint16;
+    next_frame          : uint16;
+    num_state_changes   : uint16;
+    state_change_offset : uint16;  { offset into StateChanges[] }
+    num_anim_commands   : uint16;  { How many of them to use. }
+    anim_command        : uint16;  { offset into AnimCommand[] }
+  end;
+
+
+procedure DefaultLvl(var lvl: TTR1Level);
+
 implementation
+
+procedure DefaultLvl(var lvl: TTR1Level);
+begin
+  lvl.version:=FILEVERSION_TR1;
+
+  if length(lvl.lightmap)=0 then
+    SetLEngth(lvl.lightmap, 32*256);
+  if length(lvl.pallette)=0 then begin
+    SetLength(lvl.pallette, 256);
+    move(TR1_Palette[0], lvl.pallette[0], length(lvl.pallette)*sizeof(tr_colour3));
+  end;
+  if length(lvl.SndMap)=0 then
+    SetLength(lvl.SndMap, 256);
+end;
 
 procedure DoReadTr1Room1Data(const s:TStream; var room : TTR1Room);
 var
@@ -486,8 +586,8 @@ begin
   if lvl.SndDetailCount>0 then
     s.Read(lvl.SndDetail[0], sizeof(tr1_sound_details)*lvl.SndDetailCount);
 
-  if TR1Debug then
-    writeln('before samples: ', s.Position,' ', IntToHex(s.Position,8),' wanted = $1430CA');
+{  if TR1Debug then
+    writeln('before samples: ', s.Position,' ', IntToHex(s.Position,8),' wanted = $1430CA');}
 
   lvl.SamplesCount:=s.ReadDWord;
 
@@ -498,6 +598,7 @@ begin
   if lvl.SamplesCount>0 then
     s.Read(lvl.SamplesData[0], lvl.SamplesCount);
 
+  writeln('about to read index: ', s.Position,' ',s.Size);
   lvl.SampleIndexCount := s.ReadDWord;
   SetLength(lvl.SampleIndex, lvl.SampleIndexCount);
 
@@ -757,12 +858,12 @@ begin
 
 end;
 
-procedure SaveDataToFile(const data; size: integer; const dst: string);
+procedure SaveDataToFile(const data; size: integer; const dstFileName: string);
 var
   fs: TFileStream;
 begin
   try
-    fs:=TFileStream.Create(dst, fmCreate);
+    fs:=TFileStream.Create(dstFileName, fmCreate);
     try
       fs.Write(data, size);
     finally
@@ -796,24 +897,21 @@ begin
   writeln(prefix,' ',num:8,' bytes=', bytesize:9,' at ', IntToHex(ofs, 8));
 end;
 
-type
-  TTextureInfo = packed record
-    offset : LongWord;
-    flag1  : Word;
-    flag2  : Word;
-  end;
-  PTextureInfo = ^TTextureInfo;
-  TTextureInfoArray = array [Word] of TTextureInfo;
-  PTextureInfoArray = ^TTextureInfoArray;
-
-function cmpTexture(elem1, elem2: PTextureInfo): Integer;
+procedure AnimWadToRelease(const src: tr1_animation_wad; var dst: tr1_animation);
 begin
-  if elem1^.offset<elem2^.offset then
-    Result:=-1
-  else if elem1^.offset=elem2^.offset then begin
-    Result:=0;
-  end else
-    Result:=1;
+  FillChar(dst, sizeof(dst), 0);
+  dst.frame_offset        := src.frame_offset;
+  dst.frame_rate          := src.frame_rate;
+  dst.frame_size          := src.frame_size;
+  dst.state_id            := src.state_id;
+  dst.frame_start         := src.frame_start;
+  dst.frame_end           := src.frame_end;
+  dst.next_animation      := src.next_animation;
+  dst.next_frame          := src.next_frame;
+  dst.num_state_changes   := src.num_state_changes;
+  dst.state_change_offset := src.state_change_offset;
+  dst.num_anim_commands   := src.num_anim_commands;
+  dst.anim_command        := src.anim_command;
 end;
 
 function ReadDemoWAD1(s: TStream; var lvl: TTR1level; aforced: Boolean): Boolean;
@@ -821,32 +919,56 @@ var
   v : LongWord;
   c : LongWord;
 
-  ofs : int64;
-  k   : integer;
-  cc  : integer;
-  tt  : array of TTextureInfo;
+  tt  : array of tr1_object_texture_wad;
+  aa  : array of tr1_animation_wad;
   i   : integer;
 begin
-  v:=s.ReadDWord;
-  writeln('version: ', v, ' ', IntTOHex(v,8));
+  FillChar(lvl, sizeof(lvl), 0);
+
+  lvl.version:=s.ReadDWord;
+
+  writeln('version: ', lvl.version, ' ', IntTOHex(lvl.version,8),' wad: ', sizeof(tr1_object_texture_wad));
   Result:=true;
   c:=s.ReadDWord;
 
-  DebugData('num1: ', c, c*8, s.Position);
+  //DebugData('num1: ', c, c*8, s.Position);
 
   SetLength(tt, c);
-  s.Read(tt[0], length(tt)*sizeof(TTextureInfo));
+  s.Read(tt[0], length(tt)*sizeof(tr1_object_texture_wad));
 
-  AnySort(tt[0], c, sizeof(TTextureInfo), @cmpTexture);
+  lvl.ObjTexCount:=c;
+  SetLength(lvl.ObjTex, lvl.ObjTexCount);
+  for i:=0 to lvl.ObjTexCount-1 do begin
+    lvl.ObjTex[i].Attribute:=0;
+    lvl.ObjTex[i].Tile:=tt[i].Tile;
+    lvl.ObjTex[i].Vertices[0].Xcoordinate := 1;
+    lvl.ObjTex[i].Vertices[0].Xpixel      := tt[i].x;
+    lvl.ObjTex[i].Vertices[0].Ycoordinate := 1;
+    lvl.ObjTex[i].Vertices[0].YPixel      := tt[i].y;
 
-  for i:=0 to length(tt)-1 do
-    writeln('  ',i,' ',tt[i].offset,' ',tt[i].flag1,' ',tt[i].flag2,' ', int16(tt[i].flag1),' ',int16(tt[i].flag2));
+    lvl.ObjTex[i].Vertices[1].Xcoordinate := 255;
+    lvl.ObjTex[i].Vertices[1].Xpixel      := tt[i].x+tt[i].w;
+    lvl.ObjTex[i].Vertices[1].Ycoordinate := 1;
+    lvl.ObjTex[i].Vertices[1].YPixel      := tt[i].y;
 
-  //s.Position:=s.Position+c*8;
+    lvl.ObjTex[i].Vertices[2].Xcoordinate := 255;
+    lvl.ObjTex[i].Vertices[2].Xpixel      := tt[i].x+tt[i].w;
+    lvl.ObjTex[i].Vertices[2].Ycoordinate := 255;
+    lvl.ObjTex[i].Vertices[2].YPixel      := tt[i].y+tt[i].h;
+
+    lvl.ObjTex[i].Vertices[3].Xcoordinate := 1;
+    lvl.ObjTex[i].Vertices[3].Xpixel      := tt[i].x;
+    lvl.ObjTex[i].Vertices[3].Ycoordinate := 255;
+    lvl.ObjTex[i].Vertices[3].YPixel      := tt[i].y+tt[i].h;
+  end;
 
   c:=s.ReadDWord; // mesh data? textures?
-  DebugData('num2: ', c, c, s.Position);
-  s.Position:=s.Position+c;
+  if c mod sizeof(tr1_textile)=0 then begin
+    lvl.TextTileCount:=c div SizeOf(tr1_textile);
+    SetLength(lvl.TextTile, lvl.TextTileCount);
+    s.Read(lvl.TextTile[0], lvl.TextTileCount * SizeOf(tr1_textile));
+  end else
+    s.Position:=s.Position+c;
 
   lvl.MeshPtrCount:=s.ReadDword; // Mesh Pointers
   SetLength(lvl.MeshPtr, lvl.MeshPtrCount);
@@ -861,8 +983,18 @@ begin
     s.Read(lvl.MeshData[0], lvl.MeshDataCount*2);
 
   c:=s.ReadDword; // AnimChanges?
-  DebugData('num5: ', c, c*26, s.Position);
-  s.Position:=s.Position+c*26;
+  SetLength(aa, c);
+  if c>0 then begin
+    s.Read(aa[0], c*sizeof(tr1_animation_wad) );
+    lvl.AnimationCount:=c;
+    SetLength(lvl.Animation, c);
+    for i:=0 to c - 1 do begin
+      AnimWadToRelease( aa[i], lvl.Animation[i]);
+    end;
+    //lvl.Animation:
+  end;
+  //DebugData('num5: ', c, c*26, s.Position);
+  //s.Position:=s.Position+c*26;
 
   lvl.StateChCount:=s.ReadDword; // State Changes?
   //DebugData('num6: ', c, c*6, s.Position);
@@ -911,7 +1043,7 @@ begin
   //DebugData('num11:', c, c*8, s.Position);
   //writeln('s.size = ', s.size,' ',s.size-s.position,' ',(s.size-s.position)/c:0:2,' ',s.position+c*6);
   //s.Position:=s.Position+c*8;
-  writeln('data left: ', s.size - s.position);
+  //writeln('data left: ', s.size - s.position);
 
 (*
   v:=s.ReadDWord;
@@ -1001,7 +1133,7 @@ var
 begin
   fs := TFileStream.Create(fn, fmOpenRead or fmShareDenyNone);
   try
-    writeln('reading wad: ', fn);
+    //writeln('reading wad: ', fn);
     Result:=ReadDemoWad1(fs, lvl);
   finally
     fs.Free;
@@ -1009,18 +1141,8 @@ begin
 end;
 
 function ReadDemoTOM(s: TStream; var lvl: TTR1level; aforced: Boolean = false): Boolean; overload;
-var
-  v : LongWord;
-  c : LongWord;
-
-  ofs : int64;
-  k   : integer;
-  cc  : integer;
-
 begin
-
-  //c:=s.ReadDword;
-  //DebugData('num?: ', c, c*4, s.Position);
+  Result:=false;
 end;
 
 function ReadDemoTOM(const fn: string; var lvl: TTR1level; aforced: Boolean = false): Boolean; overload;
@@ -1088,7 +1210,9 @@ begin
     BasisPeek(b, x,y,z);
     dec(b.count);
   end else begin
-    x:=0;y:=0;z:=0;
+    x:=0;
+    y:=0;
+    z:=0;
   end;
 
 {  if length(b.items)=b.count then begin
@@ -1108,11 +1232,24 @@ begin
   Result:=BasisPop(b,t1,t2,t3);
 end;
 
+procedure Normalize(var x,y,z: single);
+var
+  l : double;
+begin
+  l:=sqrt(sqr(x)+sqr(y)+sqr(z));
+  if l>0 then begin
+    x:=x/l;
+    y:=y/l;
+    z:=z/l;
+  end;
+end;
+
 function ModelToWavefrontStr(const model: tr1_model;
   const ptrs: array of uint32;
   const meshdata: array of byte;
   const meshtree: array of tr1_meshtree_raw;
   isWad: Boolean;
+  version: Integer;
   scale: double): string;
 var
   i   : integer;
@@ -1131,6 +1268,14 @@ var
   st : TBasisStack;
   pm : ptr1_meshtree;
 
+  fmt  : string;
+
+const
+  fmtRectNorm  = 'f %0:d//%0:d %1:d//%1:d %2:d//%2:d %3:d//%3:d';
+  fmtTriagNorm = 'f %0:d//%0:d %1:d//%1:d %2:d//%2:d';
+  fmtRect      = 'f %0:d %1:d %2:d %3:d';
+  fmtTriag     = 'f %0:d %1:d %2:d';
+
 begin
   s:='';
   vidx:=1;
@@ -1143,9 +1288,12 @@ begin
 
   ti:=model.mesh_tree_index;
   for i:=0 to model.num_meshes-1 do begin
-    if isWad then
-      TR1WadSetMeshFromData(meshdata, Ptrs[ofs], m)
-    else
+    if isWad then begin
+      if version=$B then
+        TR1MayWadSetMeshFromData(meshdata, Ptrs[ofs], m)
+      else
+        TR1JulWadSetMeshFromData(meshdata, Ptrs[ofs], m);
+    end else
       TR1SetMeshFromData( meshdata, ptrs[ ofs ], m );
 
     writelN('i: ',i,' cnt: ',m.centre.x{/255:0:2},' ',m.centre.y{/255:0:2},' ',m.centre.z{/255:0:2});
@@ -1178,33 +1326,56 @@ begin
       x:=(m.vertices^[j].x+dx)*scale;
       y:=(m.vertices^[j].y+dy)*scale;
       z:=(m.vertices^[j].z+dz)*scale;
-      s:=s+Format('v %.4f %.4f %.4f',[x,y,z])+LineEnding;
+      s:=s+Format('v %.8f %.8f %.8f',[x,y,z])+LineEnding;
     end;
 
     for j:=0 to m.num_normals-1 do begin
-      x:=m.normals^[j].x;
-      y:=m.normals^[j].y;
-      z:=m.normals^[j].z;
-      s:=s+Format('vn %.4f %.4f %.4f',[x,y,z])+LineEnding;
+      NormalToSingle(m.normals^[j],x,y,z);
+      Normalize(x,y,z);
+      //x:=m.normals^[j].x;
+      //y:=m.normals^[j].y;
+      //z:=m.normals^[j].z;
+      s:=s+Format('vn %.8f %.8f %.8f',[x,y,z])+LineEnding;
     end;
 
     if m.num_textured_rectangles > 0 then begin
+
+      if m.num_normals>0 then fmt:=fmtRectNorm else fmt:=fmtRect;
+
       s:=s+'# textured rectangles'+LineEnding;
       for j:=0 to m.num_textured_rectangles-1 do begin
-        s:=s+Format('f %0:d//%0:d %1:d//%1:d %2:d//%2:d %3:d//%3:d'
+        s:=s+Format(fmt
           ,[ m.textured_rectangles^[j].Verticies[0]+vidx
             ,m.textured_rectangles^[j].Verticies[1]+vidx
             ,m.textured_rectangles^[j].Verticies[2]+vidx
             ,m.textured_rectangles^[j].Verticies[3]+vidx
            ])
           +LineEnding;
+          {s:=s+Format('f %0:d %1:d %2:d %3:d'
+          ,[ m.textured_rectangles^[j].Verticies[0]+vidx
+            ,m.textured_rectangles^[j].Verticies[1]+vidx
+            ,m.textured_rectangles^[j].Verticies[2]+vidx
+            ,m.textured_rectangles^[j].Verticies[3]+vidx
+           ])
+          +LineEnding;}
+          {s:=s+Format('f %3:d %2:d %1:d %0:d'
+          ,[ m.textured_rectangles^[j].Verticies[0]+vidx
+            ,m.textured_rectangles^[j].Verticies[1]+vidx
+            ,m.textured_rectangles^[j].Verticies[2]+vidx
+            ,m.textured_rectangles^[j].Verticies[3]+vidx
+           ])
+          +LineEnding;}
       end;
     end;
 
     if m.num_textured_triangles>0 then begin
+
+
       s:=s+'# textured triangles'+LineEnding;
+      if m.num_normals>0 then fmt:=fmtTriagNorm else fmt:=fmtTriag;
+
       for j:=0 to m.num_textured_triangles-1 do begin
-        s:=s+Format('f %0:d//%0:d %1:d//%1:d %2:d//%2:d'
+        s:=s+Format( fmt
           ,[ m.textured_triangles^[j].Verticies[0]+vidx
             ,m.textured_triangles^[j].Verticies[1]+vidx
             ,m.textured_triangles^[j].Verticies[2]+vidx
@@ -1215,8 +1386,10 @@ begin
 
     if m.num_coloured_rectangles>0 then begin
       s:=s+'# colored rectangles'+LineEnding;
+      if m.num_normals>0 then fmt:=fmtRectNorm else fmt:=fmtRect;
+
       for j:=0 to m.num_coloured_rectangles-1 do begin
-        s:=s+Format('f %0:d//%0:d %1:d//%1:d %2:d//%2:d %3:d//%3:d'
+        s:=s+Format( fmt
           ,[ m.coloured_rectangles^[j].Verticies[0]+vidx
             ,m.coloured_rectangles^[j].Verticies[1]+vidx
             ,m.coloured_rectangles^[j].Verticies[2]+vidx
@@ -1228,8 +1401,10 @@ begin
 
     if m.num_coloured_triangles>0 then begin
       s:=s+'# colored triangles'+LineEnding;
+      if m.num_normals>0 then fmt:=fmtTriagNorm else fmt:=fmtTriag;
+
       for j:=0 to m.num_coloured_triangles-1 do begin
-        s:=s+Format('f %0:d//%0:d %1:d//%1:d %2:d//%2:d'
+        s:=s+Format( fmt
           ,[ m.coloured_triangles^[j].Verticies[0]+vidx
             ,m.coloured_triangles^[j].Verticies[1]+vidx
             ,m.coloured_triangles^[j].Verticies[2]+vidx
@@ -1243,6 +1418,98 @@ begin
     inc(ofs);
   end;
   Result:=s;
+end;
+
+function ColorAdjust24(const cl: tr_colour3): tr_colour3; inline;
+begin
+  Result.r:=cl.r*4;
+  Result.g:=cl.g*4;
+  Result.b:=cl.b*4;
+end;
+
+function ColorToWin24(const cl: tr_colour3): tr_colour3; inline;
+begin
+  Result.r:=cl.b;
+  Result.g:=cl.g;
+  Result.b:=cl.r;
+end;
+
+const
+  transpcolor : tr_colour4 = (r:0;g:0;b:0;a:0);
+
+function PalIndexToWin32(const pal: ptr1_palette; idx: byte): tr_colour4; inline;
+begin
+  if idx=0 then
+    Result:=transpcolor
+  else begin
+    Result.alpha:=255;
+    Result.clr:=ColorToWin24( ColorAdjust24( pal^[idx] ) );
+  end
+end;
+
+procedure SaveTileToBmp32(const dst: string; const tl: tr_textile8; pal: ptr1_palette);
+var
+  fs : TFileStream;
+  w,h: integer;
+  sz   : integer;
+  dofs : integer;
+
+  buf  : array of tr_colour4;
+  i,j  : integer;
+  k    : integer;
+const
+  bf : shortstring = 'BM';
+begin
+  if not Assigned(pal) then pal:=TR1DefPallette;
+  fs := TFileStream.Create(dst, fmCreate);
+  w:=256;
+  h:=256;
+  sz:=w * h * sizeof(buf[0]);
+  dofs:=14 + 40; // sizeof bmpheader + sizeof (dibheader)
+  try
+    // bmp header
+    fs.Write(bf[1], 2);
+    fs.WriteDWord(LongWord(sz+dofs));
+    fs.WriteWord(0);
+    fs.WriteWord(0);
+    fs.WriteDWord(LongWord(dOfs));
+
+    // dib header
+    fs.WriteDWord(40);
+    fs.WriteDWord(LongWord(w));
+    fs.WriteDWord(LongWord(h));
+    fs.Writeword(1);
+
+    fs.Writeword(32);
+ {  if sizeof(buf[0]) = 4
+      then fs.Writeword(32)
+      else fs.Writeword(24);}
+
+    fs.WriteDword(0);
+    fs.WriteDword(sz); // image size
+    fs.WriteDword(0);
+    fs.WriteDword(0);
+    fs.WriteDword(0);
+    fs.WriteDword(0);
+
+    SetLength(buf, w*h);
+    {for i:=0 to length(tl.raw)-1 do begin
+      buf[i]:=PalIndexToWin32(pal, tl.raw[i]);
+    end;}
+
+    k:=0;
+    for i:=0 to 255 do begin
+      for j:=0 to 255 do begin
+        buf[ 256*(255-i) +j]:=PalIndexToWin32(pal, tl.raw[k]);
+        inc(k);
+      end;
+    end;
+
+    fs.Write(buf[0], length(buf)* sizeof(buf[0]));
+
+  finally
+    fs.Free;
+  end;
 end;
 
 end.
