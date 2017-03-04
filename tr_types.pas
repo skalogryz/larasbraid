@@ -108,7 +108,7 @@ type
     Verticies : array [0..3] of uint16;
     Texture   : uint16;
   end;
-  ptr1_face4 = tr1_face4;
+  ptr1_face4 = ^tr1_face4;
   tr1_face4array = array [Word] of tr1_face4;
   ptr1_face4array = ^tr1_face4array;
 
@@ -118,7 +118,7 @@ type
     Verticies : array [0..2] of uint16;
     Texture   : uint16;
   end;
-  ptr1_faces3 = tr1_face3;
+  ptr1_face3 = ^tr1_face3;
   tr1_face3array = array [Word] of tr1_face3;
   ptr1_face3array = ^tr1_face3array;
 
@@ -1511,6 +1511,40 @@ begin
   Result:=i-offset;
 end;
 
+function TextureVal(const w: uint16): uint16; inline;
+begin
+  if w and $f000 = $f000 then
+    Result:=abs(int16(w))
+  else
+    Result:=w and $fff;
+end;
+
+function ColorVal(const w: uint16): uint16; inline;
+begin
+  Result:=w and $FF;
+end;
+
+procedure AdjustFace4Tex(var f : tr1_face4);
+begin
+  f.Texture:=TextureVal(f.Texture);
+end;
+
+procedure AdjustFace3Tex(var f : tr1_face3);
+begin
+  f.Texture:=TextureVal(f.Texture);
+end;
+
+procedure AdjustFace4Col(var f : tr1_face4);
+begin
+  f.Texture:=ColorVal(f.Texture);
+end;
+
+procedure AdjustFace3Col(var f : tr1_face3);
+begin
+  f.Texture:=ColorVal(f.Texture);
+end;
+
+
 function TR1MayWadSetMeshFromData(const data: array of byte; offset: Integer; var m: tr1_mesh): Integer;
 var
   i   : integer;
@@ -1593,10 +1627,16 @@ begin
       // textured
       if cnt = 3 then begin
         Move( data[i], m._waddata2[tTG*sizeof(tr1_face3)], sizeof(tr1_face3));
+        //ptr1_face3(@data[i])^.Texture:=abs( int16(ptr1_face3(@data[i])^.Texture));
+        //ptr1_face3(@data[i])^.Texture:=ptr1_face3(@data[i])^.Texture and $FF;
+        //AdjustFace3Tex( ptr1_face3(@data[i])^ );
         inc(tTG);
         inc(i, sizeof(tr1_face3));
       end else begin
         Move( data[i], m._waddata1[tRT*sizeof(tr1_face4)], sizeof(tr1_face4));
+        //ptr1_face4(@data[i])^.Texture:=abs( int16(ptr1_face4(@data[i])^.Texture));
+        //ptr1_face4(@data[i])^.Texture:=ptr1_face4(@data[i])^.Texture and $FF;
+        //AdjustFace4Tex( ptr1_face4(@data[i])^ );
         inc(tRT);
         inc(i, sizeof(tr1_face4));
       end;
@@ -1605,10 +1645,16 @@ begin
       // colored
       if cnt = 3 then begin
         Move( data[i], m._waddata4[cTG*sizeof(tr1_face3)], sizeof(tr1_face3));
+        //ptr1_face3(@data[i])^.Texture:=abs( ptr1_face3(@data[i])^.Texture));
+        //ptr1_face3(@data[i])^.Texture:=ptr1_face3(@data[i])^.Texture and $FF;
+        //AdjustFace3Col( ptr1_face3(@data[i])^ );
         inc(cTG);
         inc(i, sizeof(tr1_face3));
       end else begin
         Move( data[i], m._waddata3[cRT*sizeof(tr1_face4)], sizeof(tr1_face4));
+        //ptr1_face4(@data[i])^.Texture:=ptr1_face4(@data[i])^.Texture));
+        //ptr1_face4(@data[i])^.Texture:=ptr1_face4(@data[i])^.Texture and $FF;
+        //AdjustFace4Col( ptr1_face4(@data[i])^ );
         inc(cRT);
         inc(i, sizeof(tr1_face4));
       end;

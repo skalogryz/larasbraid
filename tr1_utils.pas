@@ -8,8 +8,19 @@ uses Classes, SysUtils, tr_types{, anysortunit};
 
 type
   TTR1VertexData = record
-    data  : array of uint16;
-    count : integer;
+    //data  : array of uint16;
+    //count : integer;
+    vtxCount : integer;
+    vtx      : array of tr1_vertex_room;
+
+    rectCount : integer;
+    rect      : array of tr1_face4;
+
+    trgCount  : integer;
+    trg       : array of tr1_face3;
+
+    sprCount  : integer;
+    spr       : array of tr1_room_sprite;
   end;
 
   TTR1Room = record
@@ -127,8 +138,13 @@ type
     SampleIndex      : array of UInt32;
   end;
 
+procedure TR1SetMeshFromLevel(const lvl: TTR1Level; isWad: Boolean;
+  meshIndex: integer; var m: tr1_mesh);
+
 function ReadLevel(s: TStream; var lvl: TTR1level; aforced: Boolean = false): Boolean; overload;
 function ReadLevel(const fn: string; var lvl: TTR1level; aforced: Boolean = false): Boolean; overload;
+
+procedure RewriteMeshData(var lvl: TTR1level; isWad: Boolean);
 
 function WriteLevel(s: TStream; const lvl: TTR1level): Boolean; overload;
 function WriteLevel(const fn: string; const lvl: TTR1level): Boolean; overload;
@@ -146,7 +162,12 @@ const
   );
 
 procedure DumpModels(const models: array of tr1_model; modelsCount: Integer);
+procedure DumpRooms(const lvl:TTR1Level);
 procedure DumpLevel(const lvl:TTR1Level);
+procedure DumpAnimation(const lvl:TTR1Level);
+
+procedure ReadDemoTexObjects(s: TStream; var lvl: TTR1level);
+procedure ReadDemoTexObjectsTom(s: TStream; var lvl: TTR1level);
 
 function ReadDemoWAD1(s: TStream; var lvl: TTR1level; aforced: Boolean = false): Boolean; overload;
 function ReadDemoWAD1(const fn: string; var lvl: TTR1level; aforced: Boolean = false): Boolean; overload;
@@ -217,6 +238,7 @@ function ModelToWavefrontStr(const model: tr1_model;
   const meshtree: array of tr1_meshtree_raw;
   isWad: Boolean;
   version: Integer;
+  iszero: Boolean;
   scale: double = 1/255): string;
 
 procedure SaveTileToBmp32(const dst: string; const tl: tr_textile8; pal: ptr1_palette = nil);
@@ -232,11 +254,11 @@ type
   end;
 
  tr1_animation_wad = packed record    { 32 bytes TR1/2/3 40 bytes TR4 }
-    frame_offset        : uint32;  { byte offset into Frames[] (divide by 2 for Frames[i]) }
-    frame_rate          : uint8;   { Engine ticks per frame }
-    frame_size          : uint8;   { number of int16's in Frames[] used by this animation }
+    //frame_offset        : uint32;  { byte offset into Frames[] (divide by 2 for Frames[i]) }
+    //frame_rate          : uint8;   { Engine ticks per frame }
+    //frame_size          : uint8;   { number of int16's in Frames[] used by this animation }
     state_id            : uint16;
-    unk                 : array [0..1] of uint8;
+    unk                 : array [0..7] of uint8;
     frame_start         : uint16;  { first frame in this animation }
     frame_end           : uint16;  { last frame in this animation (numframes = (End - Start) + 1) }
     next_animation      : uint16;
@@ -249,8 +271,56 @@ type
 
 
 procedure DefaultLvl(var lvl: TTR1Level);
+procedure DefaultRoom(var lvl: TTR1Level);
+procedure DefaultItem(var lvl: TTR1Level);
+procedure InitRoom(var rm: Ttr1room);
+procedure DumpRoomInfo(const rm: TTR1Room; const fd: array of uint16 );
+
+procedure DoReadTr1Room1Data(const s:TStream; var room : TTR1Room);
+procedure DoWriteTr1Room1Data(const s:TStream; const room : TTR1Room);
+
+function VertexToStr(const v: tr1_vertex): string;
+function Face4ToStr(const r: tr1_face4): string;
+function Face3ToStr(const r: tr1_face3): string;
+function face4(v1,v2,v3,v4: integer; txt: integer = 0): tr1_face4;
+function face3(v1,v2,v3: integer; txt: integer = 0): tr1_face3;
+function vertex(x,y,z: integer): tr1_vertex;
+function vertexrm(x,y,z: integer; lt: integer = 0): tr1_vertex_room;
+
+procedure DoReadRoomVertexData(const s: TStream; var v: TTR1VertexData);
+procedure DoWriteRoomVertexData(const s: TStream; const v: TTR1VertexData; writeSizeHead: Boolean = true);
+
+type
+  uint16array = array [word] of uint16;
+  puint16array = ^uint16array;
+
+  tr_bounding_box = packed record// 12 bytes
+     MinX, MaxX, MinY, MaxY, MinZ, MaxZ: int16;
+  end;
+  tr_anim_frame = packed record
+    box       : tr_bounding_box; // Bounding box
+    OffsetX,
+    OffsetY,
+    OffsetZ   : int16; // Starting offset for this model
+    NumValues : int16;
+    //AngleSets : puint16array;
+  end;
+  ptr_anim_frame = ^tr_anim_frame;
+
+function GetFrameSizeInUint16(const data: array of uint16; offset: integer): integer;
+
+procedure NormalizeTextures(var lvl: TTR1Level);
 
 implementation
+
+function GetFrameSizeInUint16(const data: array of uint16; offset: integer): integer;
+var
+  animframe : ptr_anim_frame;
+begin
+  animframe:=@data[offset];
+
+  Result:=sizeof(tr_anim_frame) div 2 + animframe^.NumValues*2; // EACH AngleSet is 2 words in TR1
+end;
 
 procedure DefaultLvl(var lvl: TTR1Level);
 begin
@@ -266,32 +336,200 @@ begin
     SetLength(lvl.SndMap, 256);
 end;
 
+procedure DefaultItem(var lvl: TTR1Level);
+begin
+  lvl.ItemCount:=1;
+  SetLength(lvl.Item, lvl.ItemCount);
+  FillChar(lvl.Item[0], sizeof(lvl.Item[0]) , 0);
+end;
+
+procedure InitRoom(var rm: Ttr1room);
+var
+  i : integer;
+begin
+  FillChar(rm, sizeof(rm), 0);
+  rm.doorsCount:=0;
+  //rm.roomData.count:=0;
+
+  rm.base.x:=88064;
+  rm.base.z:=35840;
+  rm.base.yBottom:=1024;
+  rm.base.yTop:=-512;
+
+  rm.zSector:=4;
+  rm.xSector:=4;
+  SetLength(rm.sectors, rm.xSector*rm.zSector);
+
+  rm.roomData.vtxCount:=22;
+  SetLength(rm.roomData.vtx,rm.roomData.vtxCount);
+  rm.roomData.vtx[0]:=vertexrm(1024,-512,2048);
+  rm.roomData.vtx[1]:=vertexrm(1024,-512,3072);
+  rm.roomData.vtx[2]:=vertexrm(1024,-512,4096);
+  rm.roomData.vtx[3]:=vertexrm(1024,-512,1024);
+  rm.roomData.vtx[4]:=vertexrm(2048,-512,1024);
+  rm.roomData.vtx[5]:=vertexrm(2048,1024,1024);
+  rm.roomData.vtx[6]:=vertexrm(1024,1024,1024);
+  rm.roomData.vtx[7]:=vertexrm(1024,1024,2048);
+  rm.roomData.vtx[8]:=vertexrm(2048,1024,2048);
+  rm.roomData.vtx[9]:=vertexrm(2048,-512,2048);
+  rm.roomData.vtx[10]:=vertexrm(1024,1024,3072);
+  rm.roomData.vtx[11]:=vertexrm(2048,1024,3072);
+  rm.roomData.vtx[12]:=vertexrm(2048,-512,3072);
+  rm.roomData.vtx[13]:=vertexrm(1024,1024,4096);
+  rm.roomData.vtx[14]:=vertexrm(2048,1024,4096);
+  rm.roomData.vtx[15]:=vertexrm(2048,-512,4096);
+  rm.roomData.vtx[16]:=vertexrm(3072,-512,2048);
+  rm.roomData.vtx[17]:=vertexrm(3072,1024,2048);
+  rm.roomData.vtx[18]:=vertexrm(3072,1024,3072);
+  rm.roomData.vtx[19]:=vertexrm(3072,-512,3072);
+  rm.roomData.vtx[20]:=vertexrm(3072,1024,4096);
+  rm.roomData.vtx[21]:=vertexrm(3072,-512,4096);
+
+  rm.roomData.rectCount:=19;
+  SetLength(rm.roomData.rect,rm.roomData.rectCount);
+  rm.roomData.rect[0]:=face4(5,6,7,8);
+  rm.roomData.rect[1]:=face4(9,0,3,4);
+  rm.roomData.rect[2]:=face4(3,0,7,6);
+  rm.roomData.rect[3]:=face4(8,7,10,11);
+  rm.roomData.rect[4]:=face4(12,1,0,9);
+  rm.roomData.rect[5]:=face4(0,1,10,7);
+  rm.roomData.rect[6]:=face4(11,10,13,14);
+  rm.roomData.rect[7]:=face4(15,2,1,12);
+  rm.roomData.rect[8]:=face4(1,2,13,10);
+  rm.roomData.rect[9]:=face4(2,15,14,13);
+  rm.roomData.rect[10]:=face4(9,4,5,8);
+  rm.roomData.rect[11]:=face4(17,8,11,18);
+  rm.roomData.rect[12]:=face4(19,12,9,16);
+  rm.roomData.rect[13]:=face4(16,9,8,17);
+  rm.roomData.rect[14]:=face4(18,11,14,20);
+  rm.roomData.rect[15]:=face4(21,15,12,19);
+  rm.roomData.rect[16]:=face4(15,21,20,14);
+  rm.roomData.rect[17]:=face4(19,16,17,18);
+  rm.roomData.rect[18]:=face4(21,19,18,20);
+
+  for i:=0 to length(rm.sectors)-1 do begin
+    rm.sectors[i].box_index:=$FFFF;
+    rm.sectors[i].fd_index:=0;
+    rm.sectors[i].floor:=4;
+    rm.sectors[i].ceiling:=-2;
+    rm.sectors[i].room_above:=$FF;
+    rm.sectors[i].room_below:=$FF;
+  end;
+
+  rm.intensity  :=0;
+  rm.lightsCount := 0;
+  rm.light := nil;
+
+  Rm.meshesCount:=0;
+  Rm.meshes := nil;
+
+  Rm.alterRoom := -1;
+  Rm.flags := 0;
+end;
+
+procedure DefaultRoom(var lvl: TTR1Level);
+var
+  i : integer;
+begin
+  writeln('defaulting a room');
+  lvl.FloorCount:=1;
+  SetLength(lvl.Floor, lvl.FloorCount);
+  lvl.Floor[0]:=$4028;
+
+  lvl.RoomCount:=1;
+  SetLength(lvl.Rooms,1);
+  InitRoom(lvl.Rooms[0]);
+end;
+
+procedure DoWriteRoomVertexData(const s: TStream; const v: TTR1VertexData; writeSizeHead: Boolean);
+var
+  cnt : integer;
+begin
+  if writeSizeHead then begin
+    cnt:=4*2
+      + v.vtxCount*sizeof(tr1_vertex_room)
+      + v.rectCount*sizeof(tr1_face4)
+      + v.trgCount*sizeof(tr1_face3)
+      + v.sprCount*sizeof(tr1_room_sprite);
+    s.WriteDWord(cnt div 2);
+  end;
+
+  s.WriteWord(v.vtxCount);
+  if v.vtxCount>0 then
+    s.Write(v.vtx[0], v.vtxCount*sizeof(tr1_vertex_room));
+
+  s.WriteWord(v.rectCount);
+  if v.rectCount>0 then
+    s.Write(v.rect[0], v.rectCount * sizeof(tr1_face4));
+
+  s.WriteWord(v.trgCount);
+  if v.trgCount>0 then
+    s.Write(v.trg[0], v.trgCount*sizeof(tr1_face3));
+
+  s.WriteWord(v.sprCount);
+  if v.sprCount>0 then
+    s.Write(v.spr[0], v.sprCount*sizeof(tr1_room_sprite));
+end;
+
+procedure DoReadRoomVertexData(const s: TStream; var v: TTR1VertexData);
+begin
+  v.vtxCount:=s.ReadWord;
+  SetLength(v.vtx, v.vtxCount);
+  if v.vtxCount>0 then
+    s.Read(v.vtx[0], v.vtxCount*sizeof(tr1_vertex_room));
+  {
+  cnt:=s.ReadWord;
+  //writeln('  verticies: ', cnt,' ',sizeof(tr1_vertex_room));
+  s.Position:=s.Position+cnt*sizeoF(tr1_vertex_room);}
+
+  v.rectCount:=s.ReadWord;
+  SetLength(v.rect, v.rectCount);
+  if v.rectCount>0 then
+    s.Read(v.rect[0], v.rectCount * sizeof(tr1_face4));
+  //cnt:=s.ReadWord;
+  //writeln('  faces:     ', cnt,' ',sizeof(tr1_face4));
+  //s.Position:=s.Position+cnt*sizeoF(tr1_face4);
+
+  v.trgCount:=s.ReadWord;
+  SetLength(v.trg, v.trgCount);
+  if v.trgCount>0 then
+    s.Read(v.trg[0], v.trgCount*sizeof(tr1_face3));
+  //cnt:=s.ReadWord;
+  //writeln('  triangles: ', cnt,' ',sizeof(tr1_face3));
+  //s.Position:=s.Position+cnt*sizeoF(tr1_face3);
+
+  v.sprCount:=s.ReadWord;
+  SetLength(v.spr, v.sprCount);
+  if v.sprCount>0 then
+    s.Read(v.spr[0], v.sprCount*sizeof(tr1_room_sprite));
+  //cnt:=s.ReadWord;
+  //writeln('  sprites:   ', cnt,' ',sizeoF(tr1_room_sprite));
+  //s.Position:=s.Position+cnt*sizeoF(tr1_room_sprite);
+
+end;
+
 procedure DoReadTr1Room1Data(const s:TStream; var room : TTR1Room);
 var
   cnt : Integer;
+  pp  : int64;
 begin
   s.ReadBuffer(room.base, sizeof(room.base));
-  room.roomData.count:=s.ReadDWord;
-  SetLength(room.roomData.data, room.roomData.count);
-  if room.roomData.count>0 then
-    s.Read(room.roomData.data[0], room.roomData.count * sizeof(uint16));
-  (*
-  cnt:=s.ReadWord;
-  //writeln('  verticies: ', cnt,' ',sizeof(tr1_vertex_room));
-  s.Position:=s.Position+cnt*sizeoF(tr1_vertex_room);
 
-  cnt:=s.ReadWord;
-  //writeln('  faces:     ', cnt,' ',sizeof(tr1_face4));
-  s.Position:=s.Position+cnt*sizeoF(tr1_face4);
 
-  cnt:=s.ReadWord;
-  //writeln('  triangles: ', cnt,' ',sizeof(tr1_face3));
-  s.Position:=s.Position+cnt*sizeoF(tr1_face3);
+  //room.roomData.count:=s.ReadDWord;
+  //SetLength(room.roomData.data, room.roomData.count);
+  cnt:=s.ReadDWord;
+  pp:=s.Position;
 
-  cnt:=s.ReadWord;
-  //writeln('  sprites:   ', cnt,' ',sizeoF(tr1_room_sprite));
-  s.Position:=s.Position+cnt*sizeoF(tr1_room_sprite);
-  *)
+  DoReadRoomVertexData(s, room.roomData);
+  if s.Position<pp+cnt then s.Position:=pp+cnt; // skipping in case alignment applies
+
+
+
+  //if room.roomData.count>0 then
+    //s.Read(room.roomData.data[0], room.roomData.count * sizeof(uint16));
+
+
   //writeln('position check: ', s.Position);
   room.doorsCount:=s.ReadWord;
   SetLength(room.doors, room.doorsCount);
@@ -307,15 +545,15 @@ begin
     s.Read( room.sectors[0], room.zSector*room.xSector*sizeof(tr1_room_sector));
   //s.Position:=s.Position+(room.zSector*room.xSector*sizeof(tr1_room_sector));
 
-  if TR1Debug then
-    writeln('  sectors: ', room.zSector,'x',room.xSector,' sizeof ',sizeof(tr1_room_sector));
+  //if TR1Debug then
+    //writeln('  sectors: ', room.zSector,'x',room.xSector,' sizeof ',sizeof(tr1_room_sector));
 
   room.intensity:=s.ReadWord;
   room.lightsCount:=s.ReadWord;
   SetLength(room.light, room.lightsCount);
 
-  if TR1Debug then
-    writeln('  lights:    ', room.lightsCount,' sizeof ',sizeof(tr1_room_light));
+  //if TR1Debug then
+    //writeln('  lights:    ', room.lightsCount,' sizeof ',sizeof(tr1_room_light));
 
   if room.lightsCount>0 then
     s.Read(room.light[0], room.lightsCount*sizeof(tr1_room_light));
@@ -323,8 +561,8 @@ begin
 
   room.meshesCount:=s.ReadWord;
 
-  if TR1Debug then
-    writeln('  meshes:    ', room.meshesCount,' sizeof ',sizeof(tr1_room_staticmesh));
+  //if TR1Debug then
+    //writeln('  meshes:    ', room.meshesCount,' sizeof ',sizeof(tr1_room_staticmesh));
 
   SetLength(room.meshes, room.meshesCount);
   if room.meshesCount>0 then
@@ -565,9 +803,6 @@ begin
     s.Read(lvl.DemoData[0], lvl.DemoDataCount*sizeof(uint8));
   end;
 
-  if TR1Debug then
-    writeln('after demo: ', s.Position,' ', IntToHex(s.Position,8));
-
   SetLength(lvl.SndMap, 256);
   s.Read(lvl.SndMap[0], length(lvl.SndMap)*sizeof(uint16));
 
@@ -586,9 +821,6 @@ begin
   if lvl.SndDetailCount>0 then
     s.Read(lvl.SndDetail[0], sizeof(tr1_sound_details)*lvl.SndDetailCount);
 
-{  if TR1Debug then
-    writeln('before samples: ', s.Position,' ', IntToHex(s.Position,8),' wanted = $1430CA');}
-
   lvl.SamplesCount:=s.ReadDWord;
 
   if TR1Debug then
@@ -598,7 +830,6 @@ begin
   if lvl.SamplesCount>0 then
     s.Read(lvl.SamplesData[0], lvl.SamplesCount);
 
-  writeln('about to read index: ', s.Position,' ',s.Size);
   lvl.SampleIndexCount := s.ReadDWord;
   SetLength(lvl.SampleIndex, lvl.SampleIndexCount);
 
@@ -623,6 +854,21 @@ begin
     Result:=DoReadLevel1(s, lvl)
   else
     Result:=false;
+end;
+
+procedure TR1SetMeshFromLevel(const lvl: TTR1Level; isWad: Boolean;
+  meshIndex: integer; var m: tr1_mesh);
+var
+  ofs : integer;
+begin
+  ofs:=lvl.MeshPtr[ meshIndex ];
+  if isWad then begin
+    if lvl.version=$B then
+      TR1MayWadSetMeshFromData(lvl.meshdata, ofs, m)
+    else
+      TR1JulWadSetMeshFromData(lvl.meshdata, ofs, m);
+  end else
+    TR1SetMeshFromData( lvl.meshdata, ofs , m );
 end;
 
 function ReadLevel(s: TStream; var lvl: TTR1level; aforced: Boolean = false): Boolean;
@@ -652,13 +898,17 @@ begin
   end;
 end;
 
-procedure DoWriteTr1Room1Data(s: TStream; const room: TTR1Room);
+procedure DoWriteTr1Room1Data(const s: TStream; const room: TTR1Room);
+var
+  i : integer;
 begin
   s.WriteBuffer(room.base, sizeof(room.base));
 
-  s.WriteDWord(room.roomData.count);
-  if room.roomData.count>0 then
-    s.WriteBuffer(room.roomData.data[0], room.roomData.count*sizeof(uint16));
+  DoWriteRoomVertexData(s, room.roomData, true);
+
+  //s.WriteDWord(room.roomData.count);
+  //if room.roomData.count>0 then
+    //s.WriteBuffer(room.roomData.data[0], room.roomData.count*sizeof(uint16));
 
   //cnt:=s.ReadDWord; //number of data btu16's to follow (=RoomData) (4 bytes)
 
@@ -887,9 +1137,47 @@ begin
   end;
 end;
 
+procedure DumpRooms(const lvl: TTR1Level);
+var
+  i : integer;
+begin
+  for i:=0 to lvl.RoomCount-1 do begin
+    writeln('room #', i);
+    DumpRoomInfo(lvl.Rooms[i], lvl.Floor);
+    writeln;
+  end;
+
+end;
+
 procedure DumpLevel(const lvl: TTR1Level);
 begin
   //lvl.ro
+end;
+
+procedure DumpAnimation(const lvl: TTR1Level);
+var
+  i : integer;
+  j : integer;
+begin
+  for i:=0 to lvl.AnimationCount-1 do begin
+    writeln('animation #', i);
+    writeln('    frame_offset        ',lvl.Animation[i].frame_offset);
+    writeln('    frame_rate          ',lvl.Animation[i].frame_rate);
+    writeln('    frame_size          ',lvl.Animation[i].frame_size);
+    writeln('    state_id            ',lvl.Animation[i].state_id);
+      write('    unk                 ');
+    for j:=0 to 7 do
+      write(IntToHex(lvl.Animation[i].unk[j], 2),' ');
+    writeln;
+    writeln('    frame_start         ',lvl.Animation[i].frame_start);
+    writeln('    frame_end           ',lvl.Animation[i].frame_end);
+    writeln('    next_animation      ',lvl.Animation[i].next_animation);
+    writeln('    next_frame          ',lvl.Animation[i].next_frame);
+    writeln('    num_state_changes   ',lvl.Animation[i].num_state_changes);
+    writeln('    state_change_offset ',lvl.Animation[i].state_change_offset);
+    writeln('    num_anim_commands   ',lvl.Animation[i].num_anim_commands);
+    writeln('    anim_command        ',lvl.Animation[i].anim_command);
+  end;
 end;
 
 procedure DebugData(const prefix: string; num, bytesize, ofs: Integer);
@@ -900,9 +1188,11 @@ end;
 procedure AnimWadToRelease(const src: tr1_animation_wad; var dst: tr1_animation);
 begin
   FillChar(dst, sizeof(dst), 0);
-  dst.frame_offset        := src.frame_offset;
-  dst.frame_rate          := src.frame_rate;
-  dst.frame_size          := src.frame_size;
+  //dst.frame_offset        := 0; //src.frame_offset; ??
+  dst.frame_rate          := 1; //src.frame_rate;
+  //dst.frame_size          := 0; //src.frame_size;
+  Move(src.unk[0], dst.unk[0], sizeof(dst.unk));
+  //dst.unk := src.unk;
   dst.state_id            := src.state_id;
   dst.frame_start         := src.frame_start;
   dst.frame_end           := src.frame_end;
@@ -914,25 +1204,13 @@ begin
   dst.anim_command        := src.anim_command;
 end;
 
-function ReadDemoWAD1(s: TStream; var lvl: TTR1level; aforced: Boolean): Boolean;
+procedure ReadDemoTexObjects(s: TStream; var lvl: TTR1level);
 var
-  v : LongWord;
-  c : LongWord;
-
+  c   : LongWord;
   tt  : array of tr1_object_texture_wad;
-  aa  : array of tr1_animation_wad;
   i   : integer;
 begin
-  FillChar(lvl, sizeof(lvl), 0);
-
-  lvl.version:=s.ReadDWord;
-
-  writeln('version: ', lvl.version, ' ', IntTOHex(lvl.version,8),' wad: ', sizeof(tr1_object_texture_wad));
-  Result:=true;
   c:=s.ReadDWord;
-
-  //DebugData('num1: ', c, c*8, s.Position);
-
   SetLength(tt, c);
   s.Read(tt[0], length(tt)*sizeof(tr1_object_texture_wad));
 
@@ -961,14 +1239,78 @@ begin
     lvl.ObjTex[i].Vertices[3].Ycoordinate := 255;
     lvl.ObjTex[i].Vertices[3].YPixel      := tt[i].y+tt[i].h;
   end;
+end;
+
+procedure ReadDemoTexObjectsTom(s: TStream; var lvl: TTR1level);
+var
+  c   : LongWord;
+  tt  : array of tr1_object_texture_wad;
+  i   : integer;
+begin
+  c:=s.ReadWord;
+  SetLength(tt, c);
+  s.Read(tt[0], length(tt)*sizeof(tr1_object_texture_wad));
+
+  lvl.ObjTexCount:=c;
+  SetLength(lvl.ObjTex, lvl.ObjTexCount);
+  for i:=0 to lvl.ObjTexCount-1 do begin
+    lvl.ObjTex[i].Attribute:=0;
+    lvl.ObjTex[i].Tile:=tt[i].Tile;
+    lvl.ObjTex[i].Vertices[0].Xcoordinate := 1;
+    lvl.ObjTex[i].Vertices[0].Xpixel      := tt[i].x;
+    lvl.ObjTex[i].Vertices[0].Ycoordinate := 1;
+    lvl.ObjTex[i].Vertices[0].YPixel      := tt[i].y;
+
+    lvl.ObjTex[i].Vertices[1].Xcoordinate := 255;
+    lvl.ObjTex[i].Vertices[1].Xpixel      := tt[i].x+tt[i].w;
+    lvl.ObjTex[i].Vertices[1].Ycoordinate := 1;
+    lvl.ObjTex[i].Vertices[1].YPixel      := tt[i].y;
+
+    lvl.ObjTex[i].Vertices[2].Xcoordinate := 255;
+    lvl.ObjTex[i].Vertices[2].Xpixel      := tt[i].x+tt[i].w;
+    lvl.ObjTex[i].Vertices[2].Ycoordinate := 255;
+    lvl.ObjTex[i].Vertices[2].YPixel      := tt[i].y+tt[i].h;
+
+    lvl.ObjTex[i].Vertices[3].Xcoordinate := 1;
+    lvl.ObjTex[i].Vertices[3].Xpixel      := tt[i].x;
+    lvl.ObjTex[i].Vertices[3].Ycoordinate := 255;
+    lvl.ObjTex[i].Vertices[3].YPixel      := tt[i].y+tt[i].h;
+  end;
+end;
+
+
+function ReadDemoWAD1(s: TStream; var lvl: TTR1level; aforced: Boolean): Boolean;
+var
+  v : LongWord;
+  c : LongWord;
+
+  tt  : array of tr1_object_texture_wad;
+  aa  : array of tr1_animation_wad;
+  i,j : integer;
+  fofs : integer;
+  res  : integer;
+begin
+  FillChar(lvl, sizeof(lvl), 0);
+
+  lvl.version:=s.ReadDWord;
+
+  writeln('version: ', lvl.version, ' ', IntTOHex(lvl.version,8),' wad: ', sizeof(tr1_object_texture_wad));
+  Result:=true;
+  ReadDemoTexObjects(s, lvl);
 
   c:=s.ReadDWord; // mesh data? textures?
+  if TR1Debug then
+    writeln('textures size = ',c,' ',s.Position-4,' ',IntToHex(s.Position-4, 8));
+
   if c mod sizeof(tr1_textile)=0 then begin
     lvl.TextTileCount:=c div SizeOf(tr1_textile);
     SetLength(lvl.TextTile, lvl.TextTileCount);
     s.Read(lvl.TextTile[0], lvl.TextTileCount * SizeOf(tr1_textile));
-  end else
+  end else begin
+    lvl.TextTileCount:=0;
     s.Position:=s.Position+c;
+  end;
+
 
   lvl.MeshPtrCount:=s.ReadDword; // Mesh Pointers
   SetLength(lvl.MeshPtr, lvl.MeshPtrCount);
@@ -985,13 +1327,9 @@ begin
   c:=s.ReadDword; // AnimChanges?
   SetLength(aa, c);
   if c>0 then begin
+    writeln('animation starts: at ', s.Position,' ',IntToHex(s.Position,8));
     s.Read(aa[0], c*sizeof(tr1_animation_wad) );
     lvl.AnimationCount:=c;
-    SetLength(lvl.Animation, c);
-    for i:=0 to c - 1 do begin
-      AnimWadToRelease( aa[i], lvl.Animation[i]);
-    end;
-    //lvl.Animation:
   end;
   //DebugData('num5: ', c, c*26, s.Position);
   //s.Position:=s.Position+c*26;
@@ -1039,6 +1377,26 @@ begin
   SetLength(lvl.Model, lvl.ModelCount);
   if lvl.ModelCount>0 then
     s.Read(lvl.Model[0], lvl.ModelCount*sizeof(tr1_model));
+
+
+  SetLength(lvl.Animation, lvl.AnimationCount);
+  fofs:=0;
+  for i:=0 to lvl.AnimationCount - 1 do begin
+    AnimWadToRelease(aa[i], lvl.Animation[i]);
+    lvl.Animation[i].frame_offset:=fofs*2;
+
+    for j:=lvl.Animation[i].frame_start to lvl.Animation[i].frame_end do begin
+      res:=GetFrameSizeInUint16(lvl.Frame, fofs);
+      writeln('look for ',i,'/',j,'. Start at: ', fofs,' (',fofs*2,') ',IntToHex(fofs*2,8),' Length = ', res);
+      inc(fofs, res);
+    end;
+  end;
+
+  for i:=0 to lvl.ModelCount-1 do begin
+    j:=lvl.Model[i].animation_index;
+    if (j=$FFFF) or (j>=lvl.AnimationCount) then continue;
+    lvl.Model[i].frame_offset:=lvl.Animation[j].frame_offset;
+  end;
 
   //DebugData('num11:', c, c*8, s.Position);
   //writeln('s.size = ', s.size,' ',s.size-s.position,' ',(s.size-s.position)/c:0:2,' ',s.position+c*6);
@@ -1141,8 +1499,39 @@ begin
 end;
 
 function ReadDemoTOM(s: TStream; var lvl: TTR1level; aforced: Boolean = false): Boolean; overload;
+var
+  c : LOngWord;
+  aa  : array of tr1_animation_wad;
+  r: TTR1Room;
 begin
   Result:=false;
+
+  lvl.version:=s.ReadDWord;
+  Result:=true;
+
+  ReadDemoTexObjectsTom(s, lvl);
+
+  writeln('count here: ', s.Position,' ',IntToHex(s.Position,8));
+  c:=s.ReadDword;
+  lvl.TextTileCount:=c div SizeOf(tr1_textile); //s.ReadWord; //c div SizeOf(tr1_textile);
+  if c mod SizeOf(tr1_textile)> 0 then inc(lvl.TextTileCount);
+  writeln('size  = ', c);
+  writeln('count = ', lvl.TextTileCount);
+
+  SetLength(lvl.TextTile, lvl.TextTileCount);
+  if lvl.TextTileCount>0 then
+    s.Read(lvl.TextTile[0], c);
+
+  SetLength(lvl.pallette, 256);
+  //writeln('pall : ', s.Position,' ',IntToHex(s.Position,8));
+
+  s.Read( lvl.pallette[0], length(lvl.pallette)*sizeof(tr_colour3));
+  writeln('rooms here: ', s.Position,' ',IntToHex(s.Position,8));
+  c:=s.ReadWord;
+  writeln('rooms: ', c);
+  exit;
+  DoReadTr1Room1Data(s, r);
+
 end;
 
 function ReadDemoTOM(const fn: string; var lvl: TTR1level; aforced: Boolean = false): Boolean; overload;
@@ -1151,8 +1540,8 @@ var
 begin
   fs := TFileStream.Create(fn, fmOpenRead or fmShareDenyNone);
   try
-    writeln('reading wad: ', fn);
-    Result:=ReadDemoWad1(fs, lvl);
+    writeln('reading tom: ', fn);
+    Result:=ReadDemoTom(fs, lvl);
   finally
     fs.Free;
   end;
@@ -1250,6 +1639,7 @@ function ModelToWavefrontStr(const model: tr1_model;
   const meshtree: array of tr1_meshtree_raw;
   isWad: Boolean;
   version: Integer;
+  iszero: Boolean;
   scale: double): string;
 var
   i   : integer;
@@ -1287,14 +1677,22 @@ begin
   BasisInit(st);
 
   ti:=model.mesh_tree_index;
+
+  writeln('dumping to wave .obj is WAD ', isWad);
+  writeln('MESHES: ', model.num_meshes);
   for i:=0 to model.num_meshes-1 do begin
+
+    ofs:=model.starting_mesh+i;
+
     if isWad then begin
       if version=$B then
         TR1MayWadSetMeshFromData(meshdata, Ptrs[ofs], m)
       else
         TR1JulWadSetMeshFromData(meshdata, Ptrs[ofs], m);
-    end else
+    end else begin
+      writeln('ptr ofs = ', ofs, ' at ',ptrs[ ofs ]);
       TR1SetMeshFromData( meshdata, ptrs[ ofs ], m );
+    end;
 
     writelN('i: ',i,' cnt: ',m.centre.x{/255:0:2},' ',m.centre.y{/255:0:2},' ',m.centre.z{/255:0:2});
 
@@ -1312,6 +1710,11 @@ begin
       px:=px+pm^.x;
       py:=py+pm^.y;
       pz:=pz+pm^.z;
+    end;
+
+    if (ptrs[ofs]=0) and (not iszero) then begin
+      //inc(ofs);
+      continue;
     end;
 
     dx:=px{+m.centre.x}{/255};
@@ -1415,7 +1818,7 @@ begin
 
     s:=s+LineEnding+LineEnding;
     inc(vidx, m.num_vertices);
-    inc(ofs);
+    //inc(ofs);
   end;
   Result:=s;
 end;
@@ -1510,6 +1913,445 @@ begin
   finally
     fs.Free;
   end;
+end;
+
+procedure RewriteMeshData(var lvl: TTR1level; isWad: Boolean);
+var
+  meshPtr  : array of uint32;
+  mp       : Integer;
+  meshData : array of byte;
+  meshCnt  : integer;
+  i,j      : integer;
+  m        : tr1_mesh;
+  sz       : integer;
+begin
+  mp:=0;
+  meshData:=nil;
+  meshCnt:=0;
+  SetLength(meshPtr, lvl.MeshPtrCount);
+
+  for i:=0 to lvl.ModelCount-1 do begin
+    for j:=0 to lvl.Model[i].num_meshes-1 do begin
+      TR1SetMeshFromLevel(lvl, isWad, lvl.Model[i].starting_mesh+j, m);
+      TR1MakeMeshStandAlone(m);
+
+      sz:=CalcMeshSize(m);
+      while sz+meshCnt>length(meshData) do begin
+        if length(meshData)=0
+          then SetLength(meshData, 256)
+          else SetLength(meshData, length(meshData)*2);
+      end;
+
+      if j=0 then lvl.Model[i].starting_mesh:=mp; // should be the same, though
+
+      sz:=WriteMeshToData(m, meshData, meshCnt);
+
+      meshPtr[mp]:=meshCnt;
+      inc(mp);
+
+      inc(meshCnt, sz);
+      //if meshCnt mod 4 > 0 then inc(meshCnt, meshCnt mod 4);
+    end;
+  end;
+
+  lvl.MeshDataCount:=meshCnt div 2;
+  lvl.MeshData:=meshData;
+
+  lvl.MeshPtr:=meshPtr;
+  lvl.MeshPtrCount:=mp;
+
+end;
+
+
+function VertexToStr(const v: tr1_vertex): string;
+begin
+  Result:=Format('(%d,%d,%d)',[v.x,v.y,v.z]);
+end;
+
+function Face4ToStr(const r: tr1_face4): string;
+begin
+  Result:=Format('(%d,%d,%d,%d)',[r.Verticies[0],r.Verticies[1],r.Verticies[2],r.Verticies[3]]);
+end;
+
+function Face3ToStr(const r: tr1_face3): string;
+begin
+  Result:=Format('(%d,%d,%d)',[r.Verticies[0],r.Verticies[1],r.Verticies[2]]);
+end;
+
+function face4(v1,v2,v3,v4: integer; txt: integer): tr1_face4;
+begin
+  Result.Verticies[0]:=v1;
+  Result.Verticies[1]:=v2;
+  Result.Verticies[2]:=v3;
+  Result.Verticies[3]:=v4;
+  Result.Texture:=txt;
+end;
+
+function face3(v1,v2,v3: integer; txt: integer): tr1_face3;
+begin
+  Result.Verticies[0]:=v1;
+  Result.Verticies[1]:=v2;
+  Result.Verticies[2]:=v3;
+  Result.Texture:=txt;
+end;
+
+function vertex(x, y, z: integer): tr1_vertex;
+begin
+  Result.x:=x;
+  Result.y:=y;
+  Result.z:=z;
+end;
+
+function vertexrm(x,y,z: integer; lt: integer): tr1_vertex_room;
+begin
+  Result.vertex.x:=x;
+  Result.vertex.y:=y;
+  Result.vertex.z:=z;
+  Result.Lighting1:=lt;
+end;
+
+procedure DumpRoomInfo(const rm: TTR1Room; const fd: array of uint16 );
+var
+  i : integer;
+  z,x: integer;
+  fdread : array of boolean;
+begin
+  writeln('base info: ');
+  writeln('  x:       ', rm.base.x);
+  writeln('  z:       ', rm.base.z);
+  writeln('  tbottom: ', rm.base.yBottom);
+  writeln('  ytop:    ', rm.base.yTop);
+
+  writeln('geometry data: ');
+  writeln('  vertex: ', rm.roomData.vtxCount);
+  write('    ');
+  for i:=0 to rm.roomData.vtxCount-1 do
+    write(' ',VertexToStr( rm.roomData.vtx[i].vertex));
+  writeln;
+  writeln('  rect: ', rm.roomData.rectCount);
+  write('    ');
+  for i:=0 to rm.roomData.rectCount-1 do
+    write(' ',Face4ToStr(rm.roomData.rect[i]) );
+  writeln;
+  writeln('  triangle: ', rm.roomData.trgCount);
+  write('    ');
+  for i:=0 to rm.roomData.trgCount-1 do
+    write(' ',Face3ToStr(rm.roomData.trg[i]) );
+  writeln;
+  writeln('  sprites: ', rm.roomData.sprCount);
+  write('    ');
+  for i:=0 to rm.roomData.sprCount-1 do
+    write(' ',rm.roomData.spr[i].vertex,'/',rm.roomData.spr[i].texture );
+  writeln;
+
+  writeln('doors: ', rm.doorsCount);
+  for i:=0 to rm.doorsCount-1 do begin
+    writeln('  door: #',i);
+    writeln('    join room: ', rm.doors[i].adjoining_room);
+    writeln('    normal:    ', VertexToStr(rm.doors[i].normal));
+    writeln('    vert:      ', VertexToStr(rm.doors[i].vertices[0])
+                         ,',', VertexToStr(rm.doors[i].vertices[1])
+                         ,',', VertexToStr(rm.doors[i].vertices[2])
+                         ,',', VertexToStr(rm.doors[i].vertices[3])
+    );
+  end;
+
+  writeln('sectors: ', rm.zSector,' ',rm.xSector);
+  i:=0;
+  for z:=0 to rm.zSector-1 do begin
+    for x:=0 to rm.xSector-1 do begin
+      write( rm.sectors[i].fd_index,' ');
+      inc(i);
+    end;
+    writeln;
+  end;
+
+  writeln('intensity: ', rm.intensity);
+  writeln('lights: ', rm.lightsCount);
+  for i:=0 to rm.lightsCount-1 do
+    writeln('  light #',i, ' ',rm.light[i].x
+                          ,' ',rm.light[i].y
+                          ,' ',rm.light[i].z
+                          ,' ',rm.light[i].Fade1,' ',rm.light[i].Intensity1);
+
+  writeln('meshes: ', rm.meshesCount);
+  for i:=0 to rm.meshesCount-1 do
+    writeln('  mesh #',i,' object_id = ', rm.meshes[i].ObjectID);
+
+  writeln('alter room: ', rm.alterRoom);
+  writeln('flags:      ', IntToHex(rm.flags,8));
+
+{    doorsCount : integer;
+    doors      : array of tr1_room_door;
+
+    zSector    : integer;
+    xSector    : integer;
+    sectors    : array of tr1_room_sector;
+
+    intensity  : int16;
+    lightsCount : integer;
+    light      : array of tr1_room_light;
+
+    meshesCount : integer;
+    meshes      : array of tr1_room_staticmesh;
+
+    alterRoom   : int16;
+    flags       : uint16;
+ }
+end;
+
+function CopyTexture(var lvl: TTR1Level; srcT: Word): Word;
+begin
+  if lvl.ObjTexCount=length(lvl.ObjTex) then begin
+    if lvl.ObjTexCount=0 then SetLength(lvl.ObjTex,2)
+    else SetLength(lvl.ObjTex, lvl.ObjTexCount*2);
+  end;
+  Result:=lvl.ObjTexCount;
+
+  Move(lvl.ObjTex[srcT], lvl.ObjTex[Result], sizeof(lvl.ObjTex[Result]));
+
+  inc(lvl.ObjTexCount);
+end;
+
+procedure SwapVert(var v1,v2: tr1_object_texture_vert);
+var
+  t:tr1_object_texture_vert;
+begin
+  t:=v1;
+  v1:=v2;
+  v2:=t;
+end;
+
+procedure SwapTexVert(var tx: tr1_object_texture; idx1, idx2: Integer);
+begin
+  SwapVert(tx.Vertices[idx1], tx.Vertices[idx2]);
+end;
+
+procedure ClearTexVert(var tx: tr1_object_texture_vert);
+begin
+  FillChar(tx, sizeof(tx), 0);
+end;
+
+function PrepareTexture(var lvl: TTR1Level; t: Word): Word;
+var
+  st : uint16;
+  rm : Word;
+  isRect: Boolean;
+  v0,v1,v2:tr1_object_texture_vert;
+
+  validated: Boolean;
+begin
+  rm:=t and $F000;
+  //if rm=0 then begin
+    //Result:=t;
+    //Exit;
+  //end;
+
+  if rm= $f000 then begin
+    st:=abs( int16(t));
+    isRect:=true;
+  end else begin
+    st:=t and $FFF;
+    isRect:=false;
+  end;
+
+  Result:=CopyTexture(lvl, st);
+
+  if isRect then begin
+(*
+Horizontal flip!
+
+Here's an example from the release version:
+UV coordinates (a,b,c,d) on #281 are flipped horizontally on #285 changing the order to (b,a,d,c)
+Thus anythign that were "top-left" should flip positions with "right-top" and vice versa
+
+#281 0000 0007
+       U       V           (u-horizontal, v - vertical)
+   0   1 176   1 16  A     (left-top)
+   1  -1 199   1 16  B     (right-top)
+   2  -1 199  -1 47  C     (right-bottom)
+   3   1 176  -1 47  D     (left-bottom)
+#285 0000 0007
+   0  -1 199   1 16  B
+   1   1 176   1 16  A
+   2   1 176 255 47  D
+   3  -1 199 255 47  C
+*)
+    SwapTexVert(lvl.ObjTex[Result],0,1);
+    SwapTexVert(lvl.ObjTex[Result],2,3);
+  end else begin
+(*
+triangle: 32774 8006 (4) mesh=14 face=1
+triangle: 41002 A02A (5) mesh=14 face=2
+triangle: 32802 8022 (4) mesh=14 face=3
+triangle: 8198 2006  (1) mesh=14 face=4
+triangle: 57378 E022 (7) mesh=14 face=8
+triangle: 57347 E003 (7) mesh=14 face=9
+triangle: 40964 A004 (5) mesh=14 face=10
+triangle: 40962 A002 (5) mesh=14 face=12
+triangle: 16387 4003 (2) mesh=14 face=14
+triangle: 57386 E02A (7) mesh=14 face=16
+triangle: 8226 2022  (1) mesh=14 face=19
+triangle: 24610 6022 (3) mesh=14 face=20
+triangle: 41003 A02B (5) mesh=14 face=22
+triangle: 49186 C022 (6) mesh=14 face=26
+triangle: 49158 C006 (6) mesh=14 face=33
+triangle: 57350 E006 (7) mesh=14 face=35
+triangle: 40966 A006 (5) mesh=14 face=36
+triangle: 16424 4028 (2) mesh=14 face=37
+triangle: 8227 2023  (1) mesh=14 face=40
+
+  *)
+    //writeln('src = ', t,' ', (rm shr 13));
+    validated:=false;
+    case (rm shr 13) of
+      0: {001} // 0 1 3 !!!!! YES!!!
+      begin
+        v0:=lvl.ObjTex[Result].Vertices[0];
+        v1:=lvl.ObjTex[Result].Vertices[1];
+        v2:=lvl.ObjTex[Result].Vertices[3];
+        validated:=true;   // глаза, ноздри
+      end;
+      1: {001} // 120 YES?
+      begin
+        v0:=lvl.ObjTex[Result].Vertices[1];
+        v1:=lvl.ObjTex[Result].Vertices[2];
+        v2:=lvl.ObjTex[Result].Vertices[3];
+        validated:=true; // сапог(верхняя часть)! (правая)
+      end;
+      2: {010} // 2 0 1 // YES!!
+      begin
+        v0:=lvl.ObjTex[Result].Vertices[2];
+        v1:=lvl.ObjTex[Result].Vertices[0];
+        v2:=lvl.ObjTex[Result].Vertices[1];
+        validated:=true;                   // правый от лары нос
+      end;
+      3: {011} // 302! YES!
+      begin
+
+        v0:=lvl.ObjTex[Result].Vertices[3];
+        v1:=lvl.ObjTex[Result].Vertices[0];
+        v2:=lvl.ObjTex[Result].Vertices[2];
+        validated:=true; // правая грудь
+      end;
+      4: {100} // 1 2 3
+      begin
+        //102
+{
+         012   ?102  2*201    301
+       0*013-   103   ~203  3*302
+        ~021  1?120  7*210   ~310
+        ~023  1>123    213   ~312
+       5*031   ~130    230  6*320
+         032   ~132    231    321
+      }
+        v0:=lvl.ObjTex[Result].Vertices[1];
+        v1:=lvl.ObjTex[Result].Vertices[0];
+        v2:=lvl.ObjTex[Result].Vertices[2];
+        validated:=true; // волосы :(
+      end;
+      5: {101}  //031 YES!!!!
+      begin
+        v0:=lvl.ObjTex[Result].Vertices[0];
+        v1:=lvl.ObjTex[Result].Vertices[3];
+        v2:=lvl.ObjTex[Result].Vertices[1];
+        validated:=true; // глаза, ноздри
+      end;
+      6: {110} // 320 YES!!
+      begin
+        v0:=lvl.ObjTex[Result].Vertices[3];
+        v1:=lvl.ObjTex[Result].Vertices[2];
+        v2:=lvl.ObjTex[Result].Vertices[0];
+        validated:=true; // волосы, левая грудь
+      end;
+    else
+      {111}
+      /// 210! YES!!!
+      v0:=lvl.ObjTex[Result].Vertices[2];
+      v1:=lvl.ObjTex[Result].Vertices[1];
+      v2:=lvl.ObjTex[Result].Vertices[0];
+      validated:=true; // левый нос
+    end;
+
+    lvl.ObjTex[Result].Vertices[0]:=v0;
+    lvl.ObjTex[Result].Vertices[1]:=v1;
+    lvl.ObjTex[Result].Vertices[2]:=v2;
+    ClearTexVert( lvl.ObjTex[Result].Vertices[3]);
+
+    //if not validated then Result:=80;
+
+    //Result:=2;
+    //Result:=0;
+  end;
+end;
+
+
+procedure NormalizeTextures(var lvl: TTR1Level);
+var
+  newtex : array of uint16;
+  i,j    : integer;
+  k : integer;
+  m : tr1_mesh;
+  nt : word;
+  t  : word;
+begin
+  SetLength(newtex, $FFFF+1);
+  for i:=0 to lvl.MeshPtrCount-1 do begin
+    j:=lvl.MeshPtr[i];
+    writeln('MESH #', i);
+
+    TR1SetMeshFromData(lvl.MeshData, j, m);
+    for j:=0 to m.num_textured_rectangles-1 do begin
+      t:=m.textured_rectangles^[j].Texture;
+
+      m.textured_rectangles^[j].Texture:=t and $FF;
+      if t and $F000>0 then begin
+        nt:=newtex[t];
+        if nt=0 then begin
+          writeln('rectangle: ', t,' ',IntToHex(t,4),' mesh=',i,' face=',j);
+          nt:=PrepareTexture(lvl, t);
+          newtex[t]:=nt;
+        end;
+
+        m.textured_rectangles^[j].Texture:=nt;
+      end;
+
+        {writeln(Format(
+          '%4:s: invalid texture at TexRecangle #%0:d of mesh %1:d, value %2:d (%2:x,%5:d) / %3:d '
+            ,[j, i, m.textured_rectangles^[j].Texture
+              , lvl.ObjTexCount
+              , isValid(m.textured_rectangles^[j].Texture,lvl.ObjTexCount)
+              , int16(m.textured_rectangles^[j].Texture)
+             ]));}
+    end;
+
+    for j:=0 to m.num_textured_triangles-1 do begin
+      t:=m.textured_triangles^[j].Texture;
+      //m.textured_triangles^[j].Texture:=t and $FFF;
+      //if t and $F000>0 then begin
+        nt:=newtex[t];
+        if nt=0 then begin
+          writeln('triangle: ', t,' vl=',IntToHex(t,4),' mesh=',i,' face=',j);
+          nt:=PrepareTexture(lvl, t);
+          newtex[t]:=nt;
+        end;
+        m.textured_triangles^[j].Texture:=nt;
+      //end;
+    end;
+
+    for j:=0 to m.num_coloured_rectangles-1 do begin
+      t:=m.coloured_rectangles^[j].Texture;
+      t:=t and $ff;
+      m.coloured_rectangles^[j].Texture:=t;
+    end;
+    for j:=0 to m.num_coloured_triangles-1 do begin
+      t:=m.coloured_triangles^[j].Texture;
+      t:=t and $ff;
+      m.coloured_triangles^[j].Texture:=t;
+    end;
+
+  end;
+
 end;
 
 end.

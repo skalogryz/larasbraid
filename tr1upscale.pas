@@ -140,21 +140,25 @@ begin
 
   for i:=0 to lvl.TextTileCount-1 do begin
     t:=TTextureStat(ts[i]);
+
     for j:=0 to t.TexObjCount-1 do begin
       x:=t.TexObjIdx[j];
-      for k:=0 to length(lvl.ObjTex[x].Vertices) do begin
+      lvl.ObjTex[x].Tile:=i;
+
+      for k:=0 to length(lvl.ObjTex[x].Vertices)-1 do begin
         if lvl.ObjTex[x].Vertices[k].Xcoordinate=0 then continue;
 
         if lvl.ObjTex[x].Vertices[k].Xpixel = t.TexRect.Left then
           lvl.ObjTex[x].Vertices[k].Xpixel:=0
         else
-          lvl.ObjTex[x].Vertices[k].Xpixel:=(t.TexRect.Right-t.TexRect.Left+1)*t.fScale;
+          lvl.ObjTex[x].Vertices[k].Xpixel:=(t.TexRect.Right-t.TexRect.Left+1)*t.fScale-1;
 
-        if lvl.ObjTex[x].Vertices[k].Ypixel = t.TexRect.Left
+        if lvl.ObjTex[x].Vertices[k].Ypixel = t.TexRect.Top
           then lvl.ObjTex[x].Vertices[k].Ypixel:=0
-          else lvl.ObjTex[x].Vertices[k].Ypixel:=(t.TexRect.Bottom-t.TexRect.Top+1)*t.fScale;
+          else lvl.ObjTex[x].Vertices[k].Ypixel:=(t.TexRect.Bottom-t.TexRect.Top+1)*t.fScale-1;
       end;
     end;
+
   end;
 end;
 
