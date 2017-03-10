@@ -5,6 +5,14 @@ program tr1tool;
 uses
   SysUtils, Classes, tr_types, tr1_utils;
 
+var
+  gCommand   : string = '';
+  gFileName  : string = '';
+  gPaletteFN : string = '';
+
+const
+  CMD_VIEW = 'view';
+
 procedure SeparateLvl(const lvl: TTR1Level);
 var
   fs : TFileStream;
@@ -439,29 +447,68 @@ begin
   ReadDemoTOM(fn, lvl);
 end;
 
+procedure PrintHelp;
+begin
+end;
+
+function SafeParamStr(i: integer; const def: string = ''): string;
+begin
+  if (i<=0) and (i>ParamCount)
+    then Result:=def
+    else Result:=ParamStr(i);
+end;
+
+procedure ParseParams;
 var
-  fn  : string;
-  ext : string;
+  i : integer;
+  s : string;
+  l : string;
+begin
+  i:=1;
+  while i<=ParamCount do begin
+    s:=ParamStr(i);
+    l:=AnsiLowerCase(s);
+    inc(i);
+    if Pos('-',s)=1 then begin
+    end else begin
+      if gCommand='' then gCommand:=l
+      else if gFileName='' then gFileName:=s;
+    end;
+  end;
+
+  if (gCommand<>'') and (gFileName='') then begin
+    gFileName:=gCommand;
+    gCommand:='view';
+  end;
+end;
+
+var
+  ext   : string;
   palfn : string;
+
 begin
   if ParamCount=0 then begin
     writeln('please sepcify .phd file exit');
     exit;
   end;
-  fn:=ParamStr(1);
-  ext:=AnsiLowerCase(ExtractFileExt(fn));
-  writeln('ext: ', ext);
-  TR1Debug:=true;
-  if ext='.phd' then
-    ReadStats(fn)
-    //HackStats(fn)
-  else if ext='.wad' then begin
-    if (ParamCount>1) and (AnsiLowerCase(ExtractFileExt(ParamStr(2)))='.tom') then
-      palfn:=ParamStr(2)
-    else
-      palfn:='';
-    ReadWadStats(fn, palfn);
-  end else if ext='.tom' then
-    ReadTom(fn);
+  ParseParams;
+  ext:=AnsiLowerCase(ExtractFileExt(gFileName));
+
+  if gCommand=CMD_VIEW then begin
+    ReadStats(gFileName)
+  end else begin
+    TR1Debug:=true;
+    if ext='.phd' then
+      ReadStats(gFileName)
+      //HackStats(fn)
+    else if ext='.wad' then begin
+      if (ParamCount>1) and (AnsiLowerCase(ExtractFileExt(ParamStr(2)))='.tom') then
+        palfn:=ParamStr(2)
+      else
+        palfn:='';
+      ReadWadStats(gFileName, palfn);
+    end else if ext='.tom' then
+      ReadTom(gFileName);
+  end;
 end.
 
