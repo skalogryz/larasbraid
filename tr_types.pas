@@ -1225,13 +1225,12 @@ begin
   z:=-v.z;
 end;
 
-function TR1SetMeshFromData(const data: array of byte; offset: Integer; var m: tr1_mesh): Integer;
+
+function MeshPointToData(const data: array of byte; offset: Integer; var m: tr1_mesh): Integer;
 var
   i : integer;
   n : integer;
 begin
-  SetLength(m._selfdata,0);
-
   i:=offset;
   m.centre:=ptr1_vertex(@data[i])^;
   inc(i, sizeof(tr1_vertex));
@@ -1282,6 +1281,12 @@ begin
   inc(i, m.num_coloured_triangles*sizeof(tr1_face3));
 
   Result:=i-offset;
+end;
+
+function TR1SetMeshFromData(const data: array of byte; offset: Integer; var m: tr1_mesh): Integer;
+begin
+  SetLength(m._selfdata,0);
+  Result:=MeshPointToData(data, offset, m);
 end;
 
 function TR1JulWadSetMeshFromData(const data: array of byte; offset: Integer; var m: tr1_mesh): Integer;
@@ -1420,6 +1425,7 @@ begin
       +sizeof(int16)
       +m.num_coloured_triangles*sizeof(tr1_face3)
     ;
+  Result:=(Result+3) div 4 * 4;
 end;
 
 procedure TR1MakeMeshStandAlone(var m: tr1_mesh);
@@ -1431,6 +1437,7 @@ begin
 
   SetLength(m._selfdata, sz);
   WriteMeshToData(m, m._selfdata, 0);
+  MeshPointToData(m._selfdata, 0, m);
 end;
 
 function WriteMeshToData(const m: tr1_mesh; var data: array of byte; offset: Integer): Integer;
