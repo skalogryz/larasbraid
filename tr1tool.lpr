@@ -9,9 +9,11 @@ var
   gCommand   : string = '';
   gFileName  : string = '';
   gPaletteFN : string = '';
+  gMeshIndx  : Integer = -1;
 
 const
   CMD_VIEW = 'view';
+  CMD_EXTARCTMESH = 'meshout';
 
 procedure SeparateLvl(const lvl: TTR1Level);
 var
@@ -111,6 +113,7 @@ var
 begin
   for i:=0 to lvl.ModelCount-1 do begin
     if (aspecificModel>=0) and (i<>aspecificModel) then continue;
+    writeln('model = ',i,' ',lvl.ModelCount);
     s:=ModelToWavefrontStr( lvl.Model[i], lvl.MeshPtr, lvl.MeshData, lvl.MeshTree, aisWad, lvl.version, i=0);
     s:='# object id '+IntToStr(lvl.Model[i].object_id)+LineEnding
        +LineEnding
@@ -447,10 +450,6 @@ begin
   ReadDemoTOM(fn, lvl);
 end;
 
-procedure PrintHelp;
-begin
-end;
-
 function SafeParamStr(i: integer; const def: string = ''): string;
 begin
   if (i<=0) and (i>ParamCount)
@@ -463,6 +462,7 @@ var
   i : integer;
   s : string;
   l : string;
+  err : Integer;
 begin
   i:=1;
   while i<=ParamCount do begin
@@ -470,6 +470,10 @@ begin
     l:=AnsiLowerCase(s);
     inc(i);
     if Pos('-',s)=1 then begin
+      if l='-meshidx' then begin
+        Val(SafeParamStr(i), gMeshIndx, err);
+        inc(i);
+      end;
     end else begin
       if gCommand='' then gCommand:=l
       else if gFileName='' then gFileName:=s;
@@ -482,13 +486,44 @@ begin
   end;
 end;
 
+procedure ExtractMeshObj(const phdFileName: string; meshindex: Integer);
+var
+  lvl : TTR1Level;
+  i   : integer;
+  m   : tr1_mesh;
+begin
+  if meshindex<0 then begin
+    writeln('please specify mesh index to extract');
+    exit;
+  end;
+  if ReadLevel(phdFileName, lvl) then begin
+
+    if (meshindex>=0) and (meshindex<lvl.MeshPtrCount) then begin
+      i:=lvl.MeshPtr[meshindex];
+      TR1SetMeshFromData(lvl.MeshData, i, m);
+      write(MeshToObjStr(m));
+    end else
+      writeln('MeshIndex = ',meshIndex,' is out of bounds. Count = ',lvl.MeshPtrCount);
+    //DumpModelsToObj(lvl, false, meshIndex)
+  end else
+    writeln(phdFileName,' failed to read');
+end;
+
+procedure PrintHelp;
+begin
+  writeln('please sepcify .phd file exit');
+  writeln('  ',CMD_VIEW,' view the statistics of .phd file');
+  writeln('  ',CMD_EXTARCTMESH,' - extract a mesh by the index');
+  writeln('      -meshidx %number% - mesh index');
+end;
+
 var
   ext   : string;
   palfn : string;
 
 begin
   if ParamCount=0 then begin
-    writeln('please sepcify .phd file exit');
+    PrintHelp;
     exit;
   end;
   ParseParams;
@@ -496,6 +531,8 @@ begin
 
   if gCommand=CMD_VIEW then begin
     ReadStats(gFileName)
+  end else if gCommand=CMD_EXTARCTMESH then begin
+    ExtractMeshObj(gFileName, gMeshIndx)
   end else begin
     TR1Debug:=true;
     if ext='.phd' then

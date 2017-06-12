@@ -232,6 +232,13 @@ var
 
   TR1DefPallette : ptr1_palette = @TR1_Palette[0];
 
+function MeshToObjStr(const m: tr1_mesh): string; overload;
+function MeshToObjStr(const m: tr1_mesh;
+  dx,dy,dz: single;
+  scale: single;
+  var vidx, vnidx, vtidx: integer
+  ): string; overload;
+
 function ModelToWavefrontStr(const model: tr1_model;
   const ptrs: array of uint32;
   const meshdata: array of byte;
@@ -1633,6 +1640,117 @@ begin
   end;
 end;
 
+function MeshToObjStr(const m: tr1_mesh): string; overload;
+var
+  v,n,t: integer;
+begin
+  v:=1;
+  n:=1;
+  t:=1;
+  Result:=MeshToObjStr(m, 0,0,0, 1.0, v,n,t);
+end;
+
+const
+  fmtRectNorm  = 'f %0:d//%0:d %1:d//%1:d %2:d//%2:d %3:d//%3:d';
+  fmtTriagNorm = 'f %0:d//%0:d %1:d//%1:d %2:d//%2:d';
+  fmtRect      = 'f %0:d %1:d %2:d %3:d';
+  fmtTriag     = 'f %0:d %1:d %2:d';
+
+function MeshToObjStr(const m: tr1_mesh; dx,dy,dz: single; scale: single; var vidx, vnidx, vtidx: integer): string;
+var
+  j : integer;
+  x,y,z: single;
+  fmt : string;
+  s : string;
+begin
+  s:='';
+  if vidx=0 then vidx:=1;
+  if vnidx=0 then vnidx:=1;
+  if vtidx=0 then vtidx:=1;
+
+  for j:=0 to m.num_vertices-1 do begin
+    x:=(m.vertices^[j].x+dx)*scale;
+    y:=(m.vertices^[j].y+dy)*scale;
+    z:=(m.vertices^[j].z+dz)*scale;
+    s:=s+Format('v %.8f %.8f %.8f',[x,y,z])+LineEnding;
+  end;
+
+  for j:=0 to m.num_normals-1 do begin
+    NormalToSingle(m.normals^[j],x,y,z);
+    Normalize(x,y,z);
+    //x:=m.normals^[j].x;
+    //y:=m.normals^[j].y;
+    //z:=m.normals^[j].z;
+    s:=s+Format('vn %.8f %.8f %.8f',[x,y,z])+LineEnding;
+  end;
+
+  if m.num_textured_rectangles > 0 then begin
+
+    if m.num_normals>0 then fmt:=fmtRectNorm else fmt:=fmtRect;
+
+    s:=s+'# textured rectangles'+LineEnding;
+    for j:=0 to m.num_textured_rectangles-1 do begin
+      s:=s+Format(fmt
+        ,[ m.textured_rectangles^[j].Verticies[0]+vidx
+          ,m.textured_rectangles^[j].Verticies[1]+vidx
+          ,m.textured_rectangles^[j].Verticies[2]+vidx
+          ,m.textured_rectangles^[j].Verticies[3]+vidx
+         ])
+        +LineEnding;
+    end;
+  end;
+
+  if m.num_textured_triangles>0 then begin
+
+
+    s:=s+'# textured triangles'+LineEnding;
+    if m.num_normals>0 then fmt:=fmtTriagNorm else fmt:=fmtTriag;
+
+    for j:=0 to m.num_textured_triangles-1 do begin
+      s:=s+Format( fmt
+        ,[ m.textured_triangles^[j].Verticies[0]+vidx
+          ,m.textured_triangles^[j].Verticies[1]+vidx
+          ,m.textured_triangles^[j].Verticies[2]+vidx
+         ])
+        +LineEnding;
+    end;
+  end;
+
+  if m.num_coloured_rectangles>0 then begin
+    s:=s+'# colored rectangles'+LineEnding;
+    if m.num_normals>0 then fmt:=fmtRectNorm else fmt:=fmtRect;
+
+    for j:=0 to m.num_coloured_rectangles-1 do begin
+      s:=s+Format( fmt
+        ,[ m.coloured_rectangles^[j].Verticies[0]+vidx
+          ,m.coloured_rectangles^[j].Verticies[1]+vidx
+          ,m.coloured_rectangles^[j].Verticies[2]+vidx
+          ,m.coloured_rectangles^[j].Verticies[3]+vidx
+         ])
+        +LineEnding;
+    end;
+  end;
+
+  if m.num_coloured_triangles>0 then begin
+    s:=s+'# colored triangles'+LineEnding;
+    if m.num_normals>0 then fmt:=fmtTriagNorm else fmt:=fmtTriag;
+
+    for j:=0 to m.num_coloured_triangles-1 do begin
+      s:=s+Format( fmt
+        ,[ m.coloured_triangles^[j].Verticies[0]+vidx
+          ,m.coloured_triangles^[j].Verticies[1]+vidx
+          ,m.coloured_triangles^[j].Verticies[2]+vidx
+         ])
+        +LineEnding;
+    end;
+  end;
+
+  s:=s+LineEnding+LineEnding;
+  inc(vidx,  m.num_vertices);
+  inc(vnidx, m.num_normals);
+  Result:=s;
+end;
+
 function ModelToWavefrontStr(const model: tr1_model;
   const ptrs: array of uint32;
   const meshdata: array of byte;
@@ -1660,20 +1778,16 @@ var
 
   fmt  : string;
 
-const
-  fmtRectNorm  = 'f %0:d//%0:d %1:d//%1:d %2:d//%2:d %3:d//%3:d';
-  fmtTriagNorm = 'f %0:d//%0:d %1:d//%1:d %2:d//%2:d';
-  fmtRect      = 'f %0:d %1:d %2:d %3:d';
-  fmtTriag     = 'f %0:d %1:d %2:d';
-
 begin
   s:='';
   vidx:=1;
+  writeln('Basis Init');
   ofs:=model.starting_mesh;
   px:=0;
   py:=0;
   pz:=0;
 
+  writeln('Basis Init');
   BasisInit(st);
 
   ti:=model.mesh_tree_index;
