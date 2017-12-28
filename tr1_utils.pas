@@ -648,7 +648,7 @@ begin
   lvl.AnimDispCount:=s.ReadDWord;
 
   if TR1Debug then
-    writeln('anim disp: ', lvl.AnimationCount,' ',sizeof(tr_anim_dispatch));
+    writeln('anim disp: ', lvl.AnimDispCount,' ',sizeof(tr_anim_dispatch));
 
   SetLength(lvl.AnimDisp, lvl.AnimDispCount);
   if lvl.AnimDispCount>0 then begin
